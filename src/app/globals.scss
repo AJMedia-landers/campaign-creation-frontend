@@ -1,0 +1,30 @@
+@use "@/styles/variables" as *;
+@use "@/styles/reset" as *;
+@use "@/styles/mixins" as mixins;
+
+body {
+  background: $sand;
+  color: #2D2A28;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.app-card {
+  @include mixins.card;
+  padding: 12px;
+}
+
+.subtle {
+  @include mixins.muted;
+}
+
+main {
+  margin-left: 260px;
+  padding: 16px;
+  width: 100%;
+  transition: margin-left .18s ease;
+}
+
+/* when collapsed */
+aside[data-collapsed="1"] + main {
+  margin-left: 64px;
+}

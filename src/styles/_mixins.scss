@@ -1,0 +1,9 @@
+@use "variables" as *;
+
+@mixin card {
+  background: $card-bg;
+  border: 1px solid $divider;
+  border-radius: $radius;
+  box-shadow: $shadow-sm;
+}
+@mixin muted { color: rgba(0,0,0,.6); }
