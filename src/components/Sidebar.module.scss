@@ -5,7 +5,7 @@ $w-collapsed: 64px;
 
 .root {
   width: $w-expanded;
-  background: #fdf5ed;
+  background:  var(--sb-bg);
   position: fixed;
   inset: 0 auto 0 0;
   border-right: 1px solid rgba(191, 142, 113, .3);
@@ -30,7 +30,7 @@ $w-collapsed: 64px;
   
   .brand {
     font-size: 14px;
-    color: #6e4f3a;
+    color: var(--sb-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -47,10 +47,10 @@ $w-collapsed: 64px;
     border: 0;
     background: transparent;
     cursor: pointer;
-    color: #6e4f3a;
+    color: var(--sb-text);
   
     &:hover {
-      background: rgba(191, 142, 113, .15);
+      background: var(--sb-hover);
     }
   }
   
@@ -66,12 +66,12 @@ $w-collapsed: 64px;
     padding: 10px 14px;
     margin: 2px 0;
     border-radius: 8px;
-    color: #5b3f30;
+    color: var(--sb-text);
     text-decoration: none;
     transition: background .15s ease, color .15s ease, transform .05s;
   
     &:hover {
-      background: rgba(191, 142, 113, .12);
+      background: var(--sb-hover);
     }
   
     &:active {
@@ -91,8 +91,8 @@ $w-collapsed: 64px;
   }
   
   .active {
-    background: rgba(191, 142, 113, .22);
-    color: #2d2a28;
+    background: var(--sb-active);
+    color: var(--sb-text-active);
     outline: 1px solid rgba(191, 142, 113, .35);
   }
 }
@@ -118,4 +118,3 @@ $w-collapsed: 64px;
     margin: auto;
   }
 }
-
