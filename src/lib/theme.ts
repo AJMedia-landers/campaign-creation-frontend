@@ -22,7 +22,7 @@ const light: ThemeOptions = {
     MuiPaper: { styleOverrides: { root: { backgroundImage: "none", border: `1px solid ${divider}` } } },
     MuiAppBar:{ styleOverrides: { colorPrimary:{ backgroundColor: cappuccino, color:"#fff", boxShadow:"none" } } },
     MuiDrawer:{ styleOverrides: { paper:{ backgroundColor: cardBg, borderRight:`1px solid ${divider}` } } },
-    MuiButton:{ styleOverrides: { root:{ textTransform:"none", borderRadius:10 } } },
+    MuiButton:{ styleOverrides: { root:{ backgroundColor: deepBrown, color: "#fff", textTransform:"none", borderRadius:10 } } },
     // MuiDataGrid:{ styleOverrides:{ columnHeaders:{ backgroundColor: sand, borderBottom:`1px solid ${divider}`, fontWeight:600, color:deepBrown } } },
   },
 };
@@ -41,10 +41,10 @@ const dark: ThemeOptions = {
   },
   shape: { borderRadius: 10 },
   components: {
-    MuiPaper: { styleOverrides: { root: { backgroundImage: "none", border: `1px solid ${darkDivider}` } } },
+    MuiPaper: { styleOverrides: { root: { backgroundColor: deepBrown, backgroundImage: "none", border: `1px solid ${darkDivider}` } } },
     MuiAppBar:{ styleOverrides: { colorPrimary:{ backgroundColor: deepBrown, color:"#fff", boxShadow:"none" } } },
     MuiDrawer:{ styleOverrides: { paper:{ backgroundColor: "#3C2E27", borderRight:`1px solid ${darkDivider}` } } },
-    MuiButton:{ styleOverrides: { root:{ textTransform:"none", borderRadius:10 } } },
+    MuiButton:{ styleOverrides: { root:{ backgroundColor: "#3C2E27", color: sand, textTransform:"none", borderRadius:10 } } },
     // MuiDataGrid:{ styleOverrides:{ columnHeaders:{ backgroundColor: "#2D2A28", borderBottom:`1px solid ${darkDivider}`, fontWeight:600, color:sand } } },
   },
 };

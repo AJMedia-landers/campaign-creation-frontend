@@ -7,22 +7,14 @@ import styles from "./Sidebar.module.scss";
 
 // Icons
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
-import LoopOutlinedIcon from "@mui/icons-material/LoopOutlined";
-import LayersOutlinedIcon from "@mui/icons-material/LayersOutlined";
 import ChecklistOutlinedIcon from "@mui/icons-material/ChecklistOutlined";
-import RuleOutlinedIcon from "@mui/icons-material/RuleOutlined";
-import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import Tooltip from "@mui/material/Tooltip";
 
 const navItems = [
   { label: "New Request Form", href: "/new-request", Icon: AddCircleOutlineIcon },
-  { label: "Non-Routine Campaigns", href: "/non-routine", Icon: LoopOutlinedIcon },
-  { label: "Routine Campaigns", href: "/routine", Icon: LayersOutlinedIcon },
   { label: "Campaign Set Requests", href: "/", Icon: ChecklistOutlinedIcon },
-  { label: "Compliance View", href: "/compliance", Icon: RuleOutlinedIcon },
-  { label: "RevContent Campaigns", href: "/revcontent", Icon: CampaignOutlinedIcon },
 ];
 
 export default function Sidebar() {

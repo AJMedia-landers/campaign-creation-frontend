@@ -1,10 +1,11 @@
 "use client";
 import * as React from "react";
 import { useContext } from "react";
-import { AppBar, Toolbar, Typography, Box, Paper, InputBase, IconButton, Tooltip } from "@mui/material";
+import { AppBar, Toolbar, Typography, Box, Paper, InputBase, IconButton, Tooltip, Button, Avatar } from "@mui/material";
 import { usePageSearch } from "@/lib/PageSearchContext";
 import { ColorModeContext } from "@/lib/ThemeRegistry";
 import styles from "./Toolbar.module.scss";
+import { useRouter } from "next/navigation";
 
 import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
@@ -14,6 +15,12 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 export default function Topbar() {
   const { query, setQuery } = usePageSearch();
   const { mode, toggle } = useContext(ColorModeContext);
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.replace("/signin");
+  };
 
   const [mounted, setMounted] = React.useState(false);
 
@@ -42,13 +49,18 @@ export default function Topbar() {
             )}
           </Paper>
         </Box>
-        {mounted && (
-          <Tooltip title={mode === "light" ? "Dark mode" : "Light mode"}>
-            <IconButton onClick={toggle} aria-label="toggle color mode" edge="end">
-              {mode === "light" ? <DarkModeIcon /> : <LightModeIcon />}
-            </IconButton>
-          </Tooltip>
-        )}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
+          {mounted && (
+            <Tooltip title={mode === "light" ? "Dark mode" : "Light mode"}>
+              <IconButton onClick={toggle} aria-label="toggle color mode" edge="end">
+                {mode === "light" ? <DarkModeIcon /> : <LightModeIcon />}
+              </IconButton>
+            </Tooltip>
+          )}
+          <Box>
+            <Button onClick={handleSignOut} variant="outlined">Sign out</Button>
+          </Box>
+        </Box>
       </Toolbar>
     </AppBar>
   );
