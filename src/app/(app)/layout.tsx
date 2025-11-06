@@ -4,7 +4,7 @@ import Topbar from "@/components/Topbar";
 import Sidebar from "@/components/Sidebar";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const token = (await cookies()).get("cc_token")?.value;
+  const token = (await cookies()).get("token")?.value;
   if (!token) redirect("/signin"); // ← guaranteed redirect before rendering anything
 
   return (

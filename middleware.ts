@@ -1,27 +1,22 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+const PUBLIC = ["/signin", "/signup", "/_next", "/favicon.ico", "/assets", "/api/auth/login", "/api/auth/signup"];
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  if (PUBLIC.some(p => pathname.startsWith(p))) return NextResponse.next();
 
-  const isPublic =
-    pathname === "/signin" ||
-    pathname === "/signup" ||
-    pathname.startsWith("/_next/") ||
-    pathname.startsWith("/favicon") ||
-    pathname.startsWith("/api/");
-
-  if (isPublic) return NextResponse.next();
-
-  const token = req.cookies.get("cc_token")?.value;
+  const token = req.cookies.get("token")?.value;
   if (!token) {
     const url = req.nextUrl.clone();
     url.pathname = "/signin";
+    url.searchParams.set("from", pathname);
     return NextResponse.redirect(url);
   }
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api|_next|favicon.ico).*)"],
 };

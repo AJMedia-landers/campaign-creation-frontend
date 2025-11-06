@@ -1,18 +1,22 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Button, TextField, Typography, Link as MuiLink, IconButton, InputAdornment } from "@mui/material";
+import { Box, Button, TextField, Typography, Link as MuiLink, IconButton, InputAdornment, Alert, Snackbar } from "@mui/material";
+import { useSocket } from "@/providers/SocketProvider";
 import Link from "next/link";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 export default function SignInPage() {
   const router = useRouter();
+  const { setSocketToken } = useSocket();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showPw, setShowPw] = useState(false);
+  const [okOpen, setOkOpen] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +30,9 @@ export default function SignInPage() {
       });
       const json = await res.json();
       if (!res.ok || !json?.success) throw new Error(json?.message || "Login failed");
-      router.replace("/"); // protected home
+      setSocketToken(json.data.token);
+      setOkOpen(true);
+      setTimeout(() => router.replace("/"), 700);
     } catch (e: any) {
       setErr(e.message || "Login failed");
     } finally {
@@ -77,6 +83,11 @@ export default function SignInPage() {
         No account?{" "}
         <MuiLink component={Link} href="/signup">Create one</MuiLink>
       </Typography>
+      <Snackbar open={okOpen} autoHideDuration={1200} onClose={() => setOkOpen(false)}>
+        <Alert severity="success" variant="filled" onClose={() => setOkOpen(false)}>
+          Signed in successfully
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

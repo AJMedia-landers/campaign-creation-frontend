@@ -6,6 +6,7 @@ import { usePageSearch } from "@/lib/PageSearchContext";
 import { ColorModeContext } from "@/lib/ThemeRegistry";
 import styles from "./Toolbar.module.scss";
 import { useRouter } from "next/navigation";
+import { useSocket } from "@/providers/SocketProvider";
 
 import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
@@ -15,11 +16,13 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 export default function Topbar() {
   const { query, setQuery } = usePageSearch();
   const { mode, toggle } = useContext(ColorModeContext);
+  const { setSocketToken } = useSocket();
   const router = useRouter();
 
   const handleSignOut = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/signin");
+    setSocketToken(null);
+    location.href = "/signin";
   };
 
   const [mounted, setMounted] = React.useState(false);

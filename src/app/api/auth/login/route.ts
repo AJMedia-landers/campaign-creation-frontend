@@ -1,40 +1,36 @@
-import { NextRequest, NextResponse } from "next/server";
-import { setSession } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
-const AUTH_API_BASE = process.env.AUTH_API_BASE; // e.g., https://api.your-backend.com
+const API = process.env.NEXT_PUBLIC_API_BASE!; // http://18.212.230.86
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   const body = await req.json();
 
-  // If backend is configured, proxy to it
-  if (AUTH_API_BASE) {
-    const r = await fetch(`${AUTH_API_BASE}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const json = await r.json();
-    if (!r.ok || !json?.success) {
-      return NextResponse.json({ success: false, message: json?.message || "Login failed" }, { status: r.status || 401 });
-    }
-    const { user, token } = json.data;
-    const res = NextResponse.json({ success: true, message: json.message, data: { user } });
-    setSession(res, token, user);
-    return res;
+  const res = await fetch(`${API}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const json = await res.json();
+
+  if (!res.ok || !json?.success) {
+    return NextResponse.json(
+      { success: false, message: json?.message ?? "Login failed" },
+      { status: res.status || 401 }
+    );
   }
 
-  // MOCK: read bundled users
-  const users: any[] = (await import("@/data/mock-users.json")).default;
-  const user = users.find(u => u.email === body.email && u.password === body.password);
-  if (!user) {
-    return NextResponse.json({ success: false, message: "Invalid email or password" }, { status: 401 });
-  }
-  const token = `mock.${user.id}.${Date.now()}`;
-  const res = NextResponse.json({
-    success: true,
-    message: "Login successful",
-    data: { user: { ...user, password: undefined } }
+  const token: string = json.data.token;
+  (await cookies()).set("token", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
   });
-  setSession(res, token, user);
-  return res;
+
+  return NextResponse.json({
+    success: true,
+    data: { user: json.data.user, token },
+  });
 }

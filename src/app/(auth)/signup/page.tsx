@@ -1,13 +1,17 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Button, TextField, Typography, Link as MuiLink, IconButton, InputAdornment } from "@mui/material";
+import { Box, Button, TextField, Typography, Link as MuiLink, IconButton, InputAdornment, Alert, Snackbar } from "@mui/material";
+import { useSocket } from "@/providers/SocketProvider";
+
 import Link from "next/link";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 export default function SignUpPage() {
   const router = useRouter();
+  const { setSocketToken } = useSocket();
+
   const [first_name, setFirst] = useState("");
   const [last_name, setLast] = useState("");
   const [email, setEmail] = useState("");
@@ -15,6 +19,7 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showPw, setShowPw] = useState(false);
+  const [okOpen, setOkOpen] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,8 +33,9 @@ export default function SignUpPage() {
       });
       const json = await res.json();
       if (!res.ok || !json?.success) throw new Error(json?.message || "Sign up failed");
-      // after successful signup, you’re logged in (cookie set) -> go home
-      router.replace("/");
+      setSocketToken(json.data.token);
+      setOkOpen(true);
+      setTimeout(() => router.replace("/"), 700);
     } catch (e: any) {
       setErr(e.message || "Sign up failed");
     } finally {
@@ -40,7 +46,7 @@ export default function SignUpPage() {
   return (
     <Box sx={{ maxWidth: 480, mx: "auto", mt: 10 }}>
       <Typography variant="h4" gutterBottom>
-        Create account(Not working)
+        Create account
       </Typography>
       <Box component="form" onSubmit={onSubmit} sx={{ display: "grid", gap: 2 }}>
         <TextField
@@ -81,7 +87,11 @@ export default function SignUpPage() {
               </InputAdornment>
             )
           }}
-        />
+          />
+          <Typography variant="caption" sx={{ color: "text.secondary", ml: 1, mt: 0.5, display: "block" }}>
+            • Password must be at least 8 characters long<br/>
+            • Password must contain at least one uppercase letter
+          </Typography>
         {err &&
           <Typography color="error">
             {err}
@@ -95,6 +105,11 @@ export default function SignUpPage() {
         Already have an account?{" "}
         <MuiLink component={Link} href="/signin">Sign in</MuiLink>
       </Typography>
+      <Snackbar open={okOpen} autoHideDuration={1200} onClose={() => setOkOpen(false)}>
+        <Alert severity="success" variant="filled" onClose={() => setOkOpen(false)}>
+          Account created!
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

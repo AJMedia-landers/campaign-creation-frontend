@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
-import { clearSession } from "@/lib/auth";
 
 export async function POST() {
   const res = NextResponse.json({ success: true });
-  clearSession(res);
+  res.cookies.set("token", "", {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    expires: new Date(0),
+  });
+
   return res;
 }

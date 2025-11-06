@@ -13,6 +13,7 @@ import {
   ToggleButtonGroup,
   IconButton,
   Autocomplete,
+  Snackbar,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
@@ -37,15 +38,16 @@ import {
 } from "@/lib/geo";
 
 const PLATFORMS = [
-  { id: "taboola", label: "Taboola" },
-  { id: "outbrain", label: "Outbrain" },
-  { id: "revcontent", label: "RevContent" },
+  { id: "Taboola", label: "Taboola" },
+  { id: "Outbrain", label: "Outbrain" },
+  { id: "RevContent", label: "RevContent" },
+  { id: "MediaGo", label: "MediaGo" },
 ];
 
 const DEVICES = [
-  { id: "mobile", label: "Mobile" },
-  { id: "desktop", label: "Desktop" },
-  { id: "tablet", label: "Tablet" },
+  { id: "Mobile", label: "Mobile" },
+  { id: "Desktop", label: "Desktop" },
+  { id: "Tablet", label: "Tablet" },
 ];
 
 const CTA_OPTIONS = ["Learn more", "Shop now", "Read more"];
@@ -214,6 +216,21 @@ export default function NewRequestForm({
     return payload as CampaignRequestInput;
   };
 
+  // ---- toast
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastSeverity, setToastSeverity] = useState<"success" | "error">("error");
+
+  function formatBackendErrors(json: any): string {
+    const errs = Array.isArray(json?.errors) ? json.errors : [];
+    if (errs.length) {
+      return errs
+        .map((e: any) => `• ${e?.field ? `${e.field}: ` : ""}${e?.message ?? "Invalid value"}`)
+        .join("\n");
+    }
+    return String(json?.message || "Validation failed");
+  }
+
   // ---- submit
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -233,9 +250,19 @@ export default function NewRequestForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json: CampaignCreateResponse = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.message || "Request failed");
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.success === false) {
+        const msg = formatBackendErrors(json);
+        setResult({ ok: false, msg });
+        setToastMsg(msg);
+        setToastSeverity("error");
+        setToastOpen(true);
+        return;
+      }
       setResult({ ok: true, msg: json.message, id: json.data?.id });
+      setToastMsg(json.message || "Request created");
+      setToastSeverity("success");
+      setToastOpen(true);
       onSubmitted?.(json);
     } catch (err: any) {
       setResult({ ok: false, msg: err.message || "Request failed" });
@@ -251,6 +278,23 @@ export default function NewRequestForm({
           {title}
         </Typography>
       )}
+
+      <Snackbar
+        open={toastOpen}
+        onClose={() => setToastOpen(false)}
+        autoHideDuration={5000}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Alert
+          severity={toastSeverity}
+          variant="filled"
+          onClose={() => setToastOpen(false)}
+          sx={{ whiteSpace: "pre-wrap", minWidth: 300 }}
+        >
+          {toastMsg}
+        </Alert>
+      </Snackbar>
+
 
       <Box component="form" onSubmit={onSubmit}>
         <Stack spacing={2}>
