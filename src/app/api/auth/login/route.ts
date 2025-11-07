@@ -26,7 +26,10 @@ export async function POST(req: Request) {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+  });
+
+  (await cookies()).set("cc_token", token, {
+    httpOnly: true, sameSite: "lax", path: "/",
   });
 
   return NextResponse.json({

@@ -96,7 +96,6 @@ export default function NewRequestForm({
 
   const [extras, setExtras] = useState<UIExtras>({
     campaign_nickname: "",
-    status: "Ready",
     ...(defaultValues || {}),
   });
 
@@ -129,7 +128,7 @@ export default function NewRequestForm({
 
   // Clear Outbrain account when Outbrain is not selected
   useEffect(() => {
-    if (!form.ad_platform.includes("outbrain") && form.ad_account_id) {
+    if (!form.ad_platform.includes("Outbrain") && form.ad_account_id) {
       onChange("ad_account_id", "");
     }
   }, [form.ad_platform]);
@@ -191,7 +190,7 @@ export default function NewRequestForm({
     if (!form.campaign_type?.trim()) e.campaign_type = "Required";
     if (!form.creatives_folder?.trim()) e.creatives_folder = "Required";
     if (!form.ad_platform?.length) e.ad_platform = "Select at least one platform";
-    if (form.ad_platform.includes("outbrain") && !form.ad_account_id)
+    if (form.ad_platform.includes("Outbrain") && !form.ad_account_id)
       e.ad_account_id = "Select an Outbrain account";
     if (!form.country) e.country = "Required";
     if (!form.timezone) e.timezone = "Required";
@@ -209,7 +208,7 @@ export default function NewRequestForm({
     };
 
     // If Outbrain isn't selected, don't send ad_account_id
-    if (!form.ad_platform.includes("outbrain")) {
+    if (!form.ad_platform.includes("Outbrain")) {
       delete payload.ad_account_id;
     }
 
@@ -343,12 +342,12 @@ export default function NewRequestForm({
               label="CampaignDate"
               value={date}
               onChange={setDate}
-              format="DD-MM-YYYY"
+              format="YYYY-MM-DD"
               slotProps={{
                 textField: {
                   fullWidth: true,
                   required: true,
-                  inputProps: { placeholder: "DD-MM-YYYY" },
+                  inputProps: { placeholder: "YYYY-MM-DD" },
                 },
               }}
             />
@@ -398,14 +397,14 @@ export default function NewRequestForm({
             )}
           </Box>
 
-          {/* Outbrain account (loaded via GET) */}
+          {/* Outbrain account */}
           <Autocomplete
             options={obAccounts}
             getOptionLabel={(opt) => opt.name}
             value={obAccounts.find((a) => a.id === form.ad_account_id) || null}
             onChange={(_, val) => onChange("ad_account_id", val?.id ?? "")}
             isOptionEqualToValue={(o, v) => o.id === v.id}
-            disabled={!form.ad_platform.includes("outbrain")}
+            disabled={!form.ad_platform.includes("Outbrain")}
             loading={accLoading}
             loadingText="Loading accounts…"
             renderInput={(params) => (
@@ -415,7 +414,7 @@ export default function NewRequestForm({
                 placeholder="Search"
                 error={!!errors.ad_account_id}
                 helperText={
-                  form.ad_platform.includes("outbrain")
+                  form.ad_platform.includes("Outbrain")
                     ? errors.ad_account_id || accError || ""
                     : "Enable by selecting Outbrain"
                 }
@@ -653,20 +652,6 @@ export default function NewRequestForm({
               fullWidth
             />
           ))}
-
-          <TextField
-            select
-            label="Status"
-            value={extras.status}
-            onChange={(e) => onExtra("status", e.target.value as UIExtras["status"])}
-            fullWidth
-          >
-            {["Ready", "Sent", "Not Ready", "Error"].map((s) => (
-              <MenuItem key={s} value={s}>
-                {s}
-              </MenuItem>
-            ))}
-          </TextField>
 
           <Button type="submit" variant="contained" disabled={submitting}>
             {submitting ? "Submitting..." : submitLabel}

@@ -20,11 +20,12 @@ body {
 main {
   margin-left: 260px;
   padding: 16px;
-  width: 100%;
+  width: calc(100% - 260px);
   transition: margin-left .18s ease;
 }
 
 /* when collapsed */
 aside[data-collapsed="1"] + main {
   margin-left: 64px;
+  width: calc(100% - 64px);
 }
