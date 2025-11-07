@@ -22,6 +22,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs, { Dayjs } from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 dayjs.extend(customParseFormat);
+import { useRouter } from "next/navigation";
 
 import type {
   CampaignRequestInput,
@@ -67,6 +68,8 @@ export default function NewRequestForm({
   onSubmitted,
   title = "New Request Form",
 }: NewRequestFormProps) {
+  const router = useRouter();
+  
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{
     ok: boolean;
@@ -263,6 +266,9 @@ export default function NewRequestForm({
       setToastSeverity("success");
       setToastOpen(true);
       onSubmitted?.(json);
+      setTimeout(() => {
+        router.replace("/");
+      }, 3000);
     } catch (err: any) {
       setResult({ ok: false, msg: err.message || "Request failed" });
     } finally {
@@ -297,13 +303,13 @@ export default function NewRequestForm({
 
       <Box component="form" onSubmit={onSubmit}>
         <Stack spacing={2}>
-          <TextField
+          {/* <TextField
             label="CampaignNickname"
             value={extras.campaign_nickname || ""}
             onChange={(e) => onExtra("campaign_nickname", e.target.value)}
             helperText={errors.campaign_nickname}
             fullWidth
-          />
+          /> */}
 
           <TextField
             label="ClientName"
