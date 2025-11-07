@@ -36,7 +36,7 @@ export type RequestItem = {
 type Props = {
   open: boolean;
   onClose: () => void;
-  data?: RequestItem | null;
+  data?: any;
 };
 
 export default function RequestDetailsDrawer({ open, onClose, data }: Props) {
@@ -72,7 +72,7 @@ export default function RequestDetailsDrawer({ open, onClose, data }: Props) {
 
         <Typography variant="subtitle1" sx={{ mb: 1 }}>Campaigns</Typography>
         <Stack spacing={1.25}>
-          {(data?.campaigns ?? []).map((c, i) => (
+          {(data?.campaigns ?? []).map((c: { campaign_name: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; campaign_status: any; campaign_id: any; built_time: any; country: any; tracking_link: string | undefined; }, i: React.Key | null | undefined) => (
             <Box key={i} sx={{
               p: 1.2, borderRadius: 1.2, border: 1, borderColor: "divider", bgcolor:"background.default"
             }}>

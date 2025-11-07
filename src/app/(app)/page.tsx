@@ -40,6 +40,12 @@ type Campaign = {
 };
 
 type RequestItem = {
+  requester: any;
+  client_name: any;
+  creatives_folder: any;
+  hours_start: any;
+  hours_end: any;
+  timezone: any;
   id: string | number;
   request_date?: string;
   status?: string;
@@ -81,7 +87,7 @@ async function fetchRequests(page = 1, limit = 20): Promise<FetchResult> {
       json?.pagination?.total
     ) || array.length;
 
-  const items: RequestItem[] = array.map((req: any, idx: number) => {
+  const items: any[] = array.map((req: any, idx: number) => {
     const campaignsSource =
       req?.campaigns ??
       req?.children ??
@@ -192,9 +198,9 @@ export default function CampaignSetRequestsPage() {
                 Array.isArray(req.ad_platform) ? req.ad_platform.join(", ") : req.ad_platform;
 
               return (
-                <Card key={req.id} sx={{maxWidth: "100%"}} variant="outlined" onClick={() => openDetails({
+                <Card key={req.id} sx={{maxWidth: "100%", cursor: "pointer"}} variant="outlined" onClick={() => openDetails({
                   id: req.id,
-                  title: `${req.brand_name} — ${req.campaign_type}`,
+                  // title: `${req.brand_name} — ${req.campaign_type}`,
                   requester: req.requester,
                   request_date: req.request_date,
                   status: req.status,
@@ -209,8 +215,7 @@ export default function CampaignSetRequestsPage() {
                   timezone: req.timezone,
                   ad_account_id: req.ad_account_id,
                   campaigns: req.campaigns,   // pass through array you already render in the inner table
-                })}
-                sx={{ cursor: "pointer" }}>
+                })}>
                   <CardHeader
                     title={
                       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
