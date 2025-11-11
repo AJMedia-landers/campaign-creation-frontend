@@ -29,6 +29,7 @@ import type {
   CampaignCreateResponse,
   UIExtras,
 } from "@/types/campaign";
+import ConfirmBeforeSubmit from "./ComfirmModal";
 
 
 const PLATFORMS = [
@@ -67,6 +68,7 @@ export default function NewRequestForm({
   
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string; id?: string } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // ---- form state
   const [form, setForm] = useState<CampaignRequestInput>({
@@ -173,6 +175,18 @@ export default function NewRequestForm({
   const [tzLoading, setTzLoading] = useState(false);
   const [tzErr, setTzErr] = useState<string | null>(null);
 
+  const listTzsForCountry = (country: string): string[] => {
+    const all = Object.keys(tzToCountries)
+      .filter((tz) => tzToCountries[tz]?.includes(country))
+      .sort((a, b) => a.localeCompare(b));
+    if (country?.trim().startsWith("US")) {
+      all.sort((a, b) =>
+        a === "America/New_York" ? -1 : b === "America/New_York" ? 1 : a.localeCompare(b)
+      );
+    }
+    return all.length ? all : ["UTC"];
+  };
+
   useEffect(() => {
     let canceled = false;
     (async () => {
@@ -238,18 +252,26 @@ export default function NewRequestForm({
   }, []);
 
   useEffect(() => {
-    if (!form.country) return;
-    const tz = countryToTz[form.country];
-    if (tz && form.timezone !== tz) onChange("timezone", tz);
-  }, [form.country, countryToTz]);
+    if (!form.country) {
+      const all = Object.keys(tzToCountries).sort((a, b) => a.localeCompare(b));
+      setTzOptions(all.length ? all : ["UTC"]);
+      return;
+    }
+    const opts = listTzsForCountry(form.country);
+    setTzOptions(opts);
+    if (!opts.includes(form.timezone)) {
+      onChange("timezone", opts[0]);
+    }
+  }, [form.country, tzToCountries]);
 
   useEffect(() => {
-    if (!form.timezone) return;
-    const list = tzToCountries[form.timezone] || [];
-    if (list.length && !list.includes(form.country)) {
-      onChange("country", list[0]);
+    const countries = tzToCountries[form.timezone] || [];
+    if (countries.length) {
+      if (!countries.includes(form.country)) {
+        onChange("country", countries[0]);
+      }
     }
-  }, [form.timezone, tzToCountries]);
+  }, [form.timezone, tzToCountries]); // eslint-disable-line
 
   const handlePlatforms = (_: any, vals: string[] | null) => {
     if (Array.isArray(vals)) onChange("ad_platform", vals);
@@ -314,8 +336,7 @@ export default function NewRequestForm({
   }
 
   // ---- submit
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doSubmit = async () => {
     setResult(null);
     const eMap = validate();
     if (Object.keys(eMap).length) {
@@ -355,7 +376,19 @@ export default function NewRequestForm({
     }
   };
 
+  // open modal before submit
+  const handlePreSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const eMap = validate();
+    if (Object.keys(eMap).length) {
+      setErrors(eMap);
+      return;
+    }
+    setConfirmOpen(true);
+  };
+
   return (
+    <>
     <Box sx={{ maxWidth: 900, mx: "auto", p: { xs: 2, md: 3 } }}>
       {title && (
         <Typography component="div" variant="h4" sx={{ mb: 2 }}>
@@ -379,7 +412,7 @@ export default function NewRequestForm({
         </Alert>
       </Snackbar>
 
-      <Box component="form" onSubmit={onSubmit}>
+      <Box component="form" onSubmit={handlePreSubmit}>
         <Stack spacing={2}>
           {/* <TextField
             label="CampaignNickname"
@@ -716,5 +749,14 @@ export default function NewRequestForm({
         </Stack>
       </Box>
     </Box>
+    <ConfirmBeforeSubmit
+      open={confirmOpen}
+      onCancel={() => setConfirmOpen(false)}
+      onConfirm={() => {
+        setConfirmOpen(false);
+        doSubmit();   // submit only after user confirms
+      }}
+    />
+    </>
   );
 }

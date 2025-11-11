@@ -15,10 +15,20 @@ import {
   Tooltip,
   Typography,
   IconButton,
+  Menu,
+  MenuItem,
+  Checkbox,
+  ListItemIcon,
+  ListItemText,
 } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
+import ViewColumnIcon from "@mui/icons-material/ViewColumn";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
+import HideSourceIcon from "@mui/icons-material/HideSource";
+import RestoreIcon from "@mui/icons-material/Restore";
 import { RequestItem } from "@/types/campaign";
+import { buildRequestTitle } from "@/lib/requestTitle";
 
 const isUrl = (v: unknown) => typeof v === "string" && /^https?:\/\//i.test(v);
 
@@ -29,7 +39,7 @@ interface RequestCardProps {
 }
 
 export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: RequestCardProps) {
-  const columns = React.useMemo(() => {
+  const allColumns = React.useMemo(() => {
     const set = new Set<string>();
     for (const row of req.campaigns ?? []) {
       if (row && typeof row === "object") Object.keys(row).forEach((k) => set.add(k));
@@ -57,10 +67,59 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: Requ
     return [...preferred.filter((k) => set.has(k)), ...rest];
   }, [req.campaigns]);
 
+  const storageKey = React.useMemo(() => `req:${req.id}:visibleCols`, [req.id]);
+
+  const defaultVisible = React.useMemo<string[]>(
+    () =>
+      allColumns.filter((k) =>
+        [
+          "campaign_name",
+          "campaign_status",
+          "campaign_id",
+          "tracking_link",
+          "creative_sub_folder",
+          "creatives_folder",
+          "sub_folder_type",
+          "built_time",
+        ].includes(k)
+      ),
+    [allColumns]
+  );
+
+  const [visibleCols, setVisibleCols] = React.useState<string[]>(defaultVisible);
+
+  // load / persist
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const arr: string[] = JSON.parse(raw);
+        const cleaned = arr.filter((k) => allColumns.includes(k));
+        if (cleaned.length) setVisibleCols(cleaned);
+      }
+    } catch {}
+  }, [storageKey]);
+
+  React.useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(visibleCols));
+  }, [storageKey, visibleCols]);
+
+  const isVisible = React.useCallback((k: string) => visibleCols.includes(k), [visibleCols]);
+  const toggleCol = (k: string) =>
+    setVisibleCols((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+  const showAll = () => setVisibleCols(allColumns);
+  const hideAll = () => setVisibleCols([]);
+  const resetCols = () => setVisibleCols(defaultVisible);
+
+  const columns = React.useMemo(
+    () => allColumns.filter((k) => isVisible(k)),
+    [allColumns, isVisible]
+  );
+
   /** Column widths */
   const [colW, setColW] = React.useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
-    for (const key of columns) {
+    for (const key of allColumns) {
       if (key === "creative_sub_folder" || key === "creatives_folder") {
         initial[key] = 96; // icon-only
       } else if (key === "sub_folder_type") {
@@ -82,7 +141,7 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: Requ
   React.useEffect(() => {
     setColW((prev) => {
       const next: Record<string, number> = { ...prev };
-      for (const key of columns) {
+      for (const key of allColumns) {
         if (next[key] == null) {
           next[key] =
             key === "creative_sub_folder" || key === "creatives_folder" ? 96 :
@@ -92,10 +151,10 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: Requ
             200;
         }
       }
-      Object.keys(next).forEach((k) => !columns.includes(k) && delete next[k]);
+      Object.keys(next).forEach((k) => !allColumns.includes(k) && delete next[k]);
       return next;
     });
-  }, [columns]);
+  }, [allColumns]);
 
   // resize
   const dragRef = React.useRef<{ key: string; startX: number; startW: number } | null>(null);
@@ -135,8 +194,8 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: Requ
       const s = typeof raw === "string" ? raw : "";
       const isError = /error/i.test(s);
       const label = isError
-        ? row?.error_message || "Error"
-        : (s || "—");
+      ? row?.error_message || "Error"
+      : (s || "—");
       const color = isError ? "error" : statusColor(s);
       return (
         <Chip
@@ -229,15 +288,19 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: Requ
   const platform =
     Array.isArray(req.ad_platform) ? req.ad_platform.join(", ") : req.ad_platform;
 
+  /** Columns menu */
+  const [menuEl, setMenuEl] = React.useState<null | HTMLElement>(null);
+  const openMenu = (e: React.MouseEvent<HTMLElement>) => setMenuEl(e.currentTarget);
+  const closeMenu = () => setMenuEl(null);
+
   return (
     <Card variant="outlined" sx={{ overflow: "hidden", maxWidth: "100%" }}>
       <CardHeader
-        onClick={() => onOpenRequest(req)}
-        sx={{ cursor: "pointer" }}
         title={
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" onClick={() => onOpenRequest(req)}
+          sx={{ cursor: "pointer" }}>
             <Typography variant="h6">
-              {req.brand_name || "Request"} — {req.campaign_type || "Type N/A"}
+              {buildRequestTitle(req)}
             </Typography>
             {platform && <Chip size="small" label={platform} />}
             {req.status && (
@@ -259,11 +322,60 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: Requ
         }
         subheader={
           <Stack direction="row" spacing={2} divider={<span style={{ opacity: 0.3 }}>|</span> as any}>
-            <Typography variant="body2">Req ID: {req.id}</Typography>
             {req.request_date && <Typography variant="body2">Requested: {req.request_date}</Typography>}
             {req.campaign_date && <Typography variant="body2">Campaign Date: {req.campaign_date}</Typography>}
             {req.ad_account_id && <Typography variant="body2">AdAccount: {req.ad_account_id}</Typography>}
           </Stack>
+        }
+        action={
+          <>
+            <Tooltip title="Columns">
+              <IconButton size="small" onClick={openMenu} onMouseDown={(e) => e.stopPropagation()}>
+                <ViewColumnIcon />
+              </IconButton>
+            </Tooltip>
+
+            <Menu
+              anchorEl={menuEl}
+              open={Boolean(menuEl)}
+              onClose={closeMenu}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+              slotProps={{ paper: { sx: { minWidth: 260, maxHeight: 360 } } }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Box
+                sx={{
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 1,
+                  bgcolor: "background.paper",
+                  borderBottom: 1,
+                  borderColor: "divider",
+                }}
+              >
+                <MenuItem onClick={showAll} dense>
+                  <ListItemIcon><DoneAllIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Show all" />
+                </MenuItem>
+                <MenuItem onClick={hideAll} dense>
+                  <ListItemIcon><HideSourceIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Hide all" />
+                </MenuItem>
+                <MenuItem onClick={resetCols} dense>
+                  <ListItemIcon><RestoreIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Reset to defaults" />
+                </MenuItem>
+              </Box>
+
+              {allColumns.map((k) => (
+                <MenuItem key={k} onClick={() => toggleCol(k)} dense>
+                  <Checkbox edge="start" checked={isVisible(k)} />
+                  <ListItemText primary={k} />
+                </MenuItem>
+              ))}
+            </Menu>
+          </>
         }
       />
       <CardContent
