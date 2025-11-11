@@ -1,4 +1,3 @@
-// app/api/campaigns/campaigns-by-request/route.ts
 import { NextResponse, NextRequest } from "next/server";
 import { cookies } from "next/headers";
 
@@ -21,7 +20,6 @@ export async function GET(req: NextRequest) {
       Authorization: `Bearer ${token}`,
     },
   });
-  
 
   const text = await res.text();
   let json: any; try { json = JSON.parse(text); } catch { json = { raw: text }; }

@@ -28,14 +28,7 @@ import type {
   CampaignCreateResponse,
   UIExtras,
 } from "@/types/campaign";
-import {
-  getAllCountries,
-  getTimezonesByCountry,
-  pickDefaultTimezone,
-  CountryOption,
-  flagEmoji,
-  tzToGmtLabel,
-} from "@/lib/geo";
+
 
 const PLATFORMS = [
   { id: "Taboola", label: "Taboola" },
@@ -52,7 +45,9 @@ const DEVICES = [
 
 const CTA_OPTIONS = ["Learn more", "Shop now", "Read more"];
 
-type ObAccount = { id: string; name: string };
+type ClientName = { id?: string; name: string } | string;
+type ObAccount = { id: string; name: string, marketer_id: string };
+type RawTzRow = { country: string; timezone: string };
 
 export type NewRequestFormProps = {
   defaultValues?: Partial<CampaignRequestInput & UIExtras>;
@@ -68,11 +63,7 @@ export default function NewRequestForm({
   title = "New Request Form",
 }: NewRequestFormProps) {
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{
-    ok: boolean;
-    msg: string;
-    id?: string;
-  } | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; msg: string; id?: string } | null>(null);
 
   // ---- form state
   const [form, setForm] = useState<CampaignRequestInput>({
@@ -83,7 +74,7 @@ export default function NewRequestForm({
     ad_account_id: "",
     brand_name: "",
     timezone: "UTC",
-    country: "US",
+    country: "",
     device: [],
     hours_start: 0,
     hours_end: 0,
@@ -114,26 +105,37 @@ export default function NewRequestForm({
     setErrors((prev) => ({ ...prev, [k]: "" }));
   };
 
-  // ---- countries / timezones
-  const countries = useMemo<CountryOption[]>(() => getAllCountries(), []);
-  const [countryTimezones, setCountryTimezones] = useState<string[]>(["GMT"]);
+  // Client names
+  const [clientNames, setClientNames] = useState<string[]>([]);
+  const [clientLoading, setClientLoading] = useState(false);
+  const [clientErr, setClientErr] = useState<string | null>(null);
 
   useEffect(() => {
-    const tzs = getTimezonesByCountry(form.country || "US");
-    setCountryTimezones(tzs);
-    if (!tzs.includes(form.timezone)) {
-      onChange("timezone", pickDefaultTimezone(form.country || "US", tzs));
-    }
-  }, [form.country]);
+    let canceled = false;
+    (async () => {
+      try {
+        setClientLoading(true);
+        setClientErr(null);
+        const res = await fetch("/api/client-names");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+        const normalized = (list as ClientName[])
+          .map((c) => (typeof c === "string" ? c : c?.name))
+          .filter(Boolean) as string[];
+        if (!canceled) setClientNames(normalized);
+      } catch {
+        if (!canceled) setClientErr("Failed to load client names");
+      } finally {
+        if (!canceled) setClientLoading(false);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
-  // Clear Outbrain account when Outbrain is not selected
-  useEffect(() => {
-    if (!form.ad_platform.includes("Outbrain") && form.ad_account_id) {
-      onChange("ad_account_id", "");
-    }
-  }, [form.ad_platform]);
-
-  // ---- Outbrain accounts (GET from mock API)
+  // Outbrain accounts
   const [obAccounts, setObAccounts] = useState<ObAccount[]>([]);
   const [accLoading, setAccLoading] = useState(false);
   const [accError, setAccError] = useState<string | null>(null);
@@ -144,14 +146,12 @@ export default function NewRequestForm({
       try {
         setAccLoading(true);
         setAccError(null);
-
-        // GET /api/ad-accounts
-        const res = await fetch("/api/ad-accounts", { cache: "no-store" });
+        const res = await fetch("/api/outbrain-accounts");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: ObAccount[] = await res.json();
-
-        if (!canceled) setObAccounts(Array.isArray(data) ? data : []);
-      } catch (e: any) {
+        const payload = await res.json();
+        const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+        if (!canceled) setObAccounts(list as ObAccount[]);
+      } catch {
         if (!canceled) setAccError("Failed to load Outbrain accounts");
       } finally {
         if (!canceled) setAccLoading(false);
@@ -162,7 +162,92 @@ export default function NewRequestForm({
     };
   }, []);
 
-  // ---- toggle handlers
+  //Country and Timezone
+  const [countryOptions, setCountryOptions] = useState<string[]>([]); // e.g. ["DE – Germany", ...]
+  const [countryToTz, setCountryToTz] = useState<Record<string, string>>({});
+  const [tzToCountries, setTzToCountries] = useState<Record<string, string[]>>({});
+  const [tzOptions, setTzOptions] = useState<string[]>([]);
+  const [tzLoading, setTzLoading] = useState(false);
+  const [tzErr, setTzErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let canceled = false;
+    (async () => {
+      try {
+        setTzLoading(true);
+        setTzErr(null);
+
+        const res = await fetch("/api/country-timezones");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        const rows: RawTzRow[] = Array.isArray(payload?.data) ? payload.data : payload;
+
+        const c2t: Record<string, string> = {};
+        const t2c: Record<string, string[]> = {};
+        const countries: string[] = [];
+        const seen = new Set<string>();
+
+        for (const r of rows) {
+          const country = String(r?.country || "").trim();
+          const tz = String(r?.timezone || "").trim();
+          if (!country || !tz) continue;
+
+          if (!c2t[country]) c2t[country] = tz;
+
+          (t2c[tz] ??= []).push(country);
+
+          if (!seen.has(country)) {
+            countries.push(country);
+            seen.add(country);
+          }
+        }
+
+        const uniqueCountries = countries;
+        const allTzs = Object.keys(t2c).sort((a, b) => a.localeCompare(b));
+
+        setCountryOptions(uniqueCountries);
+        setCountryToTz(c2t);
+        setTzToCountries(t2c);
+        setTzOptions(allTzs.length ? allTzs : ["UTC"]);
+
+        if (!form.country && uniqueCountries.length) {
+          const first = uniqueCountries[0];
+          onChange("country", first);
+          onChange("timezone", c2t[first] || "UTC");
+        } else if (form.country && !form.timezone) {
+          onChange("timezone", c2t[form.country] || "UTC");
+        }
+      } catch {
+        if (!canceled) {
+          setTzErr("Failed to load timezones");
+          setCountryOptions([]);
+          setCountryToTz({});
+          setTzToCountries({});
+          setTzOptions(["UTC"]);
+        }
+      } finally {
+        if (!canceled) setTzLoading(false);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!form.country) return;
+    const tz = countryToTz[form.country];
+    if (tz && form.timezone !== tz) onChange("timezone", tz);
+  }, [form.country, countryToTz]);
+
+  useEffect(() => {
+    if (!form.timezone) return;
+    const list = tzToCountries[form.timezone] || [];
+    if (list.length && !list.includes(form.country)) {
+      onChange("country", list[0]);
+    }
+  }, [form.timezone, tzToCountries]);
+
   const handlePlatforms = (_: any, vals: string[] | null) => {
     if (Array.isArray(vals)) onChange("ad_platform", vals);
   };
@@ -199,19 +284,14 @@ export default function NewRequestForm({
     return e;
   };
 
-  // ---- payload builder
+  // ---- payload
   const buildPayload = (): CampaignRequestInput => {
     const payload: any = {
       ...form,
-      timezone: tzToGmtLabel(form.timezone),
+      timezone: form.timezone,
       campaign_date: date ? date.format("YYYY-MM-DD") : undefined,
     };
-
-    // If Outbrain isn't selected, don't send ad_account_id
-    if (!form.ad_platform.includes("Outbrain")) {
-      delete payload.ad_account_id;
-    }
-
+    if (!form.ad_platform.includes("Outbrain")) delete payload.ad_account_id;
     return payload as CampaignRequestInput;
   };
 
@@ -243,7 +323,6 @@ export default function NewRequestForm({
     setSubmitting(true);
     try {
       const payload = buildPayload();
-      console.log("REQUEST PAYLOAD →", payload);
       const res = await fetch("/api/campaigns/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -273,7 +352,7 @@ export default function NewRequestForm({
   return (
     <Box sx={{ maxWidth: 900, mx: "auto", p: { xs: 2, md: 3 } }}>
       {title && (
-        <Typography variant="h4" sx={{ mb: 2 }}>
+        <Typography component="div" variant="h4" sx={{ mb: 2 }}>
           {title}
         </Typography>
       )}
@@ -294,7 +373,6 @@ export default function NewRequestForm({
         </Alert>
       </Snackbar>
 
-
       <Box component="form" onSubmit={onSubmit}>
         <Stack spacing={2}>
           <TextField
@@ -305,20 +383,24 @@ export default function NewRequestForm({
             fullWidth
           />
 
-          <TextField
-            label="ClientName"
-            value={form.client_name || ""}
-            onChange={(e) => onChange("client_name", e.target.value)}
-            onBlur={() =>
-              setErrors((p) => ({
-                ...p,
-                client_name: form.client_name?.trim() ? "" : "Required",
-              }))
-            }
-            error={!!errors.client_name}
-            helperText={errors.client_name}
-            required
-            fullWidth
+          {/* ClientName */}
+          <Autocomplete
+            options={clientNames}
+            getOptionLabel={(opt) => opt}
+            value={form.client_name || null}
+            onChange={(_, val) => onChange("client_name", val || "")}
+            loading={clientLoading}
+            loadingText="Loading client names…"
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="ClientName"
+                required
+                error={!!errors.client_name}
+                helperText={errors.client_name || clientErr || ""}
+                fullWidth
+              />
+            )}
           />
 
           <TextField
@@ -372,7 +454,7 @@ export default function NewRequestForm({
 
           {/* AdPlatform */}
           <Box>
-            <Typography sx={{ mb: 1 }}>AdPlatform *</Typography>
+            <Typography component="div" sx={{ mb: 1 }}>AdPlatform *</Typography>
             <ToggleButtonGroup
               value={form.ad_platform}
               exclusive={false}
@@ -381,17 +463,13 @@ export default function NewRequestForm({
               aria-label="ad-platforms"
             >
               {PLATFORMS.map((p) => (
-                <ToggleButton
-                  key={p.id}
-                  value={p.id}
-                  aria-pressed={form.ad_platform.includes(p.id)}
-                >
+                <ToggleButton key={p.id} value={p.id} aria-pressed={form.ad_platform.includes(p.id)}>
                   {p.label}
                 </ToggleButton>
               ))}
             </ToggleButtonGroup>
             {!!errors.ad_platform && (
-              <Typography variant="caption" color="error">
+              <Typography component="div" variant="caption" color="error">
                 {errors.ad_platform}
               </Typography>
             )}
@@ -401,9 +479,9 @@ export default function NewRequestForm({
           <Autocomplete
             options={obAccounts}
             getOptionLabel={(opt) => opt.name}
-            value={obAccounts.find((a) => a.id === form.ad_account_id) || null}
-            onChange={(_, val) => onChange("ad_account_id", val?.id ?? "")}
-            isOptionEqualToValue={(o, v) => o.id === v.id}
+            value={obAccounts.find((a) => a.marketer_id === form.ad_account_id) || null}
+            onChange={(_, val) => onChange("ad_account_id", val?.marketer_id ?? "")}
+            isOptionEqualToValue={(o, v) => o.marketer_id === v.marketer_id}
             disabled={!form.ad_platform.includes("Outbrain")}
             loading={accLoading}
             loadingText="Loading accounts…"
@@ -432,13 +510,7 @@ export default function NewRequestForm({
           />
 
           {/* Hours */}
-          <Box
-            sx={{
-              display: "grid",
-              gap: 2,
-              gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-            }}
-          >
+          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
             <TextField
               sx={{
                 "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
@@ -454,16 +526,10 @@ export default function NewRequestForm({
                 inputProps: { min: 0, max: 23 },
                 endAdornment: (
                   <Stack direction="row" spacing={0.5}>
-                    <IconButton
-                      size="small"
-                      onClick={() => stepNum("hours_start", -1, { min: 0 })}
-                    >
+                    <IconButton size="small" onClick={() => stepNum("hours_start", -1, { min: 0 })}>
                       <RemoveIcon />
                     </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => stepNum("hours_start", +1, { max: 23 })}
-                    >
+                    <IconButton size="small" onClick={() => stepNum("hours_start", +1, { max: 23 })}>
                       <AddIcon />
                     </IconButton>
                   </Stack>
@@ -486,16 +552,10 @@ export default function NewRequestForm({
                 inputProps: { min: 0, max: 23 },
                 endAdornment: (
                   <Stack direction="row" spacing={0.5}>
-                    <IconButton
-                      size="small"
-                      onClick={() => stepNum("hours_end", -1, { min: 0 })}
-                    >
+                    <IconButton size="small" onClick={() => stepNum("hours_end", -1, { min: 0 })}>
                       <RemoveIcon />
                     </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => stepNum("hours_end", +1, { max: 23 })}
-                    >
+                    <IconButton size="small" onClick={() => stepNum("hours_end", +1, { max: 23 })}>
                       <AddIcon />
                     </IconButton>
                   </Stack>
@@ -506,18 +566,14 @@ export default function NewRequestForm({
           </Box>
 
           {/* Country / Timezone */}
-          <Box
-            sx={{
-              display: "grid",
-              gap: 2,
-              gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-            }}
-          >
+          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
             <Autocomplete
-              options={countries}
-              getOptionLabel={(opt) => `${flagEmoji(opt.code)} ${opt.name}`}
-              value={countries.find((c) => c.code === form.country) || null}
-              onChange={(_, newVal) => onChange("country", newVal?.code || "")}
+              options={countryOptions}
+              getOptionLabel={(opt) => opt}
+              value={form.country || null}
+              onChange={(_, newVal) => onChange("country", newVal || "")}
+              loading={tzLoading}
+              loadingText="Loading countries…"
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -530,17 +586,18 @@ export default function NewRequestForm({
             />
 
             <Autocomplete
-              options={countryTimezones}
+              options={tzOptions}
               getOptionLabel={(tz) => tz}
               value={form.timezone || ""}
               onChange={(_, newVal) => onChange("timezone", newVal || "")}
+              loading={tzLoading}
+              loadingText="Loading timezones…"
               renderInput={(params) => (
                 <TextField
                   {...params}
                   label="Timezone"
                   required
                   error={!!errors.timezone}
-                  helperText={`Will send: ${tzToGmtLabel(form.timezone || "UTC")}`}
                 />
               )}
             />
@@ -548,25 +605,16 @@ export default function NewRequestForm({
 
           {/* Devices */}
           <Box>
-            <Typography sx={{ mb: 1 }}>Device *</Typography>
-            <ToggleButtonGroup
-              value={form.device}
-              exclusive={false}
-              onChange={handleDevices}
-              aria-label="devices"
-            >
+            <Typography component="div" sx={{ mb: 1 }}>Device *</Typography>
+            <ToggleButtonGroup value={form.device} exclusive={false} onChange={handleDevices} aria-label="devices">
               {DEVICES.map((d) => (
-                <ToggleButton
-                  key={d.id}
-                  value={d.id}
-                  aria-pressed={form.device.includes(d.id)}
-                >
+                <ToggleButton key={d.id} value={d.id} aria-pressed={form.device.includes(d.id)}>
                   {d.label}
                 </ToggleButton>
               ))}
             </ToggleButtonGroup>
             {!!errors.device && (
-              <Typography variant="caption" color="error">
+              <Typography component="div" variant="caption" color="error">
                 {errors.device}
               </Typography>
             )}
@@ -587,10 +635,7 @@ export default function NewRequestForm({
               inputProps: { min: 0, step: 1 },
               endAdornment: (
                 <Stack direction="row" spacing={0.5}>
-                  <IconButton
-                    size="small"
-                    onClick={() => stepNum("daily_budget", -1, { min: 0 })}
-                  >
+                  <IconButton size="small" onClick={() => stepNum("daily_budget", -1, { min: 0 })}>
                     <RemoveIcon />
                   </IconButton>
                   <IconButton size="small" onClick={() => stepNum("daily_budget", +1)}>

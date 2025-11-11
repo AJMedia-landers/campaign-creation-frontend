@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Topbar />
       <div style={{ display: "flex" }}>
         <Sidebar />
-        <main id="app-main" style={{ width: "100%" }}>{children}</main>
+        <main id="app-main">{children}</main>
       </div>
     </>
   );
