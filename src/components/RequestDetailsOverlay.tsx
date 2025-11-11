@@ -8,6 +8,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
 import { RequestItem } from "@/types/campaign";
+import { buildRequestTitle } from "@/lib/requestTitle";
 
 type Props = {
   open: boolean;
@@ -28,11 +29,11 @@ export default function RequestDetailsOverlay({
   const HeaderBar = (
     <Toolbar sx={{ px: 2 }}>
       <Typography sx={{ flex: 1 }} variant="h6" noWrap>
-        Request details
+        {buildRequestTitle(data)}
       </Typography>
 
       <Stack direction="row" spacing={1} alignItems="center">
-        <Button
+        {/* <Button
           size="small"
           color="error"
           variant="outlined"
@@ -46,7 +47,7 @@ export default function RequestDetailsOverlay({
           onClick={() => data && onRecreate?.(data)}
         >
           Recreate campaigns
-        </Button>
+        </Button> */}
 
         <IconButton
           aria-label={expanded ? "shrink" : "expand"}
@@ -65,7 +66,7 @@ export default function RequestDetailsOverlay({
   const Body = (
     <Box sx={{ p: 2 }}>
       {/* meta */}
-      <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap" sx={{ mb: 2 }}>
+      <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap" flexDirection="column" sx={{ mb: 2 }}>
         <Meta label="Status" value={<Chip size="small" label={data?.status ?? "—"} />} />
         <Meta label="Requested" value={data?.request_date ?? "—"} />
         <Meta label="Campaign Date" value={data?.campaign_date ?? "—"} />
@@ -79,7 +80,14 @@ export default function RequestDetailsOverlay({
         />
         <Meta label="Ad Account" value={data?.ad_account_id ?? "—"} />
         <Meta label="Country" value={data?.country ?? "—"} />
-        <Meta label="Device" value={data?.device ?? "—"} />
+        <Meta
+          label="Device"
+          value={
+            Array.isArray(data?.device)
+              ? data?.device.join(", ")
+              : (data?.device ?? "—")
+          }
+        />
         <Meta label="Timezone" value={data?.timezone ?? "—"} />
         <Meta label="Daily Budget" value={data?.daily_budget ?? "—"} />
       </Stack>

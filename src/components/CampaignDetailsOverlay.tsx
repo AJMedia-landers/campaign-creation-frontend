@@ -31,6 +31,12 @@ export default function CampaignDetailsOverlay({
     /processing|running|sent|pending|progress|building/i.test(status) ? "warning" :
     "default";
 
+  const HIDDEN_FIELDS = React.useMemo(() => new Set(["id", "request_id"]), []);
+  const visibleEntries = React.useMemo(
+    () => Object.entries(c as Record<string, unknown>).filter(([k]) => !HIDDEN_FIELDS.has(k)),
+    [c, HIDDEN_FIELDS]
+  );
+
   const HeaderBar = (
     <Toolbar sx={{ px: 2 }}>
       <Typography sx={{ flex: 1 }} variant="h6" noWrap>
@@ -38,8 +44,8 @@ export default function CampaignDetailsOverlay({
       </Typography>
 
       <Stack direction="row" spacing={1}>
-        <Button variant="outlined" onClick={() => onEdit?.(c)}>Edit this</Button>
-        <Button color="error" variant="contained" onClick={() => onDelete?.(c)}>Delete</Button>
+        {/* <Button variant="outlined" onClick={() => onEdit?.(c)}>Edit this</Button>
+        <Button color="error" variant="contained" onClick={() => onDelete?.(c)}>Delete</Button> */}
 
         <IconButton onClick={() => setExpanded((v) => !v)}>
           {expanded ? <CloseFullscreenIcon /> : <OpenInFullIcon />}
@@ -59,7 +65,7 @@ export default function CampaignDetailsOverlay({
       </Stack>
 
       <Stack spacing={1.25}>
-        {Object.entries(c as Record<string, unknown>).map(([k, v]) => (
+        {visibleEntries.map(([k, v]) => (
           <Stack
             key={k}
             direction="row"
