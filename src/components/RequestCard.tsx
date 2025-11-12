@@ -36,9 +36,10 @@ interface RequestCardProps {
   req: RequestItem;
   onOpenRequest: (r: RequestItem) => void;
   onOpenCampaign: (row: any) => void;
+  visibleCols?: string[];
 }
 
-export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: RequestCardProps) {
+export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibleCols: externalVisible }: RequestCardProps) {
   const allColumns = React.useMemo(() => {
     const set = new Set<string>();
     for (const row of req.campaigns ?? []) {
@@ -90,6 +91,7 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: Requ
 
   // load / persist
   React.useEffect(() => {
+    if (externalVisible) return;
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) {
@@ -98,23 +100,25 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: Requ
         if (cleaned.length) setVisibleCols(cleaned);
       }
     } catch {}
-  }, [storageKey]);
+  }, [storageKey, allColumns, externalVisible]);
 
   React.useEffect(() => {
+    if (externalVisible) return;
     localStorage.setItem(storageKey, JSON.stringify(visibleCols));
-  }, [storageKey, visibleCols]);
+  }, [storageKey, visibleCols, externalVisible]);
 
-  const isVisible = React.useCallback((k: string) => visibleCols.includes(k), [visibleCols]);
-  const toggleCol = (k: string) =>
-    setVisibleCols((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
-  const showAll = () => setVisibleCols(allColumns);
-  const hideAll = () => setVisibleCols([]);
-  const resetCols = () => setVisibleCols(defaultVisible);
-
+  const useCols = externalVisible ?? visibleCols;
+  const isVisible = React.useCallback((k: string) => useCols.includes(k), [useCols]);
   const columns = React.useMemo(
     () => allColumns.filter((k) => isVisible(k)),
     [allColumns, isVisible]
   );
+
+  const toggleCol = (k: string) =>
+    externalVisible ? undefined : setVisibleCols((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+  const showAll = () => externalVisible ? undefined : setVisibleCols(allColumns);
+  const hideAll = () => externalVisible ? undefined : setVisibleCols([]);
+  const resetCols = () => externalVisible ? undefined : setVisibleCols(defaultVisible);
 
   /** Column widths */
   const [colW, setColW] = React.useState<Record<string, number>>(() => {
@@ -293,6 +297,8 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: Requ
   const openMenu = (e: React.MouseEvent<HTMLElement>) => setMenuEl(e.currentTarget);
   const closeMenu = () => setMenuEl(null);
 
+  const showLocalMenu = !externalVisible;
+
   return (
     <Card variant="outlined" sx={{ overflow: "hidden", maxWidth: "100%" }}>
       <CardHeader
@@ -328,54 +334,56 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign }: Requ
           </Stack>
         }
         action={
-          <>
-            <Tooltip title="Columns">
-              <IconButton size="small" onClick={openMenu} onMouseDown={(e) => e.stopPropagation()}>
-                <ViewColumnIcon />
-              </IconButton>
-            </Tooltip>
+          showLocalMenu ? (
+            <>
+              <Tooltip title="Columns">
+                <IconButton size="small" onClick={openMenu} onMouseDown={(e) => e.stopPropagation()}>
+                  <ViewColumnIcon />
+                </IconButton>
+              </Tooltip>
 
-            <Menu
-              anchorEl={menuEl}
-              open={Boolean(menuEl)}
-              onClose={closeMenu}
-              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-              transformOrigin={{ vertical: "top", horizontal: "right" }}
-              slotProps={{ paper: { sx: { minWidth: 260, maxHeight: 360 } } }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Box
-                sx={{
-                  position: "sticky",
-                  top: 0,
-                  zIndex: 1,
-                  bgcolor: "background.paper",
-                  borderBottom: 1,
-                  borderColor: "divider",
-                }}
+              <Menu
+                anchorEl={menuEl}
+                open={Boolean(menuEl)}
+                onClose={closeMenu}
+                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                transformOrigin={{ vertical: "top", horizontal: "right" }}
+                slotProps={{ paper: { sx: { minWidth: 260, maxHeight: 360 } } }}
+                onClick={(e) => e.stopPropagation()}
               >
-                <MenuItem onClick={showAll} dense>
-                  <ListItemIcon><DoneAllIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Show all" />
-                </MenuItem>
-                <MenuItem onClick={hideAll} dense>
-                  <ListItemIcon><HideSourceIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Hide all" />
-                </MenuItem>
-                <MenuItem onClick={resetCols} dense>
-                  <ListItemIcon><RestoreIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Reset to defaults" />
-                </MenuItem>
-              </Box>
+                <Box
+                  sx={{
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 1,
+                    bgcolor: "background.paper",
+                    borderBottom: 1,
+                    borderColor: "divider",
+                  }}
+                >
+                  <MenuItem onClick={showAll} dense>
+                    <ListItemIcon><DoneAllIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Show all" />
+                  </MenuItem>
+                  <MenuItem onClick={hideAll} dense>
+                    <ListItemIcon><HideSourceIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Hide all" />
+                  </MenuItem>
+                  <MenuItem onClick={resetCols} dense>
+                    <ListItemIcon><RestoreIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Reset to defaults" />
+                  </MenuItem>
+                </Box>
 
-              {allColumns.map((k) => (
-                <MenuItem key={k} onClick={() => toggleCol(k)} dense>
-                  <Checkbox edge="start" checked={isVisible(k)} />
-                  <ListItemText primary={k} />
-                </MenuItem>
-              ))}
-            </Menu>
-          </>
+                {allColumns.map((k) => (
+                  <MenuItem key={k} onClick={() => toggleCol(k)} dense>
+                    <Checkbox edge="start" checked={isVisible(k)} />
+                    <ListItemText primary={k} />
+                  </MenuItem>
+                ))}
+              </Menu>
+            </>
+          ) : null
         }
       />
       <CardContent

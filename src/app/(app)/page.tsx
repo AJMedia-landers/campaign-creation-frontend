@@ -2,6 +2,7 @@
 import * as React from "react";
 import {
   Box, Button, CircularProgress, IconButton, Stack, Typography, TablePagination,
+  Dialog,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -11,11 +12,16 @@ import RequestDetailsOverlay from "@/components/RequestDetailsOverlay";
 import CampaignDetailsOverlay from "@/components/CampaignDetailsOverlay";
 
 import NewRequestDialog from "@/components/NewRequestDialog";
-import { RequestItem } from "@/types/campaign";
+import { Campaign, RequestItem } from "@/types/campaign";
 import { usePageSearch } from "@/lib/PageSearchContext";
 import { buildRequestTitle } from "@/lib/requestTitle";
 import RequestsFilter, { defaultRequestsFilter, RequestsFilterValue } from "@/components/RequestsFilter";
 import EmptyState from "@/components/EmptyState";
+import ColumnsMenu from "@/components/ColumnsMenu"
+import { useSocket } from "@/providers/SocketProvider";
+import NewRequestForm from "@/components/NewRequestForm";
+import { usePathname } from "next/navigation";
+
 
 // ---- fetch helper
 type FetchResult = { items: RequestItem[]; total: number };
@@ -35,6 +41,17 @@ async function fetchRequests(page = 1, limit = 20): Promise<FetchResult> {
   })) as RequestItem[];
 
   return { items, total };
+}
+
+const asId = (v: string | number) => String(v);
+
+function mergeCampaigns(oldList: Campaign[], patchList: Campaign[]) {
+  const map = new Map(oldList.map(c => [asId(c.id), c]));
+  for (const patch of patchList) {
+    const id = asId(patch.id);
+    map.set(id, { ...map.get(id), ...patch });
+  }
+  return Array.from(map.values());
 }
 
 function statusKind(v: any): "Created" | "Error" | null {
@@ -62,7 +79,9 @@ function dateInRange (value?: string | null, from?: string | null, to?: string |
 };
 
 export default function CampaignSetRequestsPage() {
+  const { socket } = useSocket();
   const { query } = usePageSearch();
+  const pathname = usePathname();
   const [openNew, setOpenNew] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [items, setItems] = React.useState<RequestItem[]>([]);
@@ -77,6 +96,36 @@ export default function CampaignSetRequestsPage() {
   const [campForOverlay, setCampForOverlay] = React.useState<any | null>(null);
 
   const [filters, setFilters] = React.useState<RequestsFilterValue>(defaultRequestsFilter);
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editOf, setEditOf] = React.useState<RequestItem | null>(null);
+
+  const mapRequestToFormDefaults = (r: RequestItem) => ({
+    campaign_type: r.campaign_type ?? "",
+    client_name: r.client_name ?? "",
+    creatives_folder: r.creatives_folder ?? "",
+    ad_platform: Array.isArray(r.ad_platform) ? r.ad_platform : (r.ad_platform ? [r.ad_platform] : []),
+    ad_account_id: r.ad_account_id ?? "",
+    brand_name: r.brand_name ?? "",
+    timezone: r.timezone ?? "UTC",
+    country: r.country ?? "",
+    device: Array.isArray(r.device) ? r.device : (r.device ? [r.device] : []),
+    hours_start: Number(r.hours_start ?? 0),
+    hours_end: Number(r.hours_end ?? 0),
+    daily_budget: Number(r.daily_budget ?? 0),
+    cta_button: r.cta_button ?? "Learn more",
+    creative_description: r.creative_description ?? "",
+    headline1: r.headline1 ?? "",
+    headline2: r.headline2 ?? "",
+    headline3: r.headline3 ?? "",
+    headline4: r.headline4 ?? "",
+    headline5: r.headline5 ?? "",
+    headline6: r.headline6 ?? "",
+    headline7: r.headline7 ?? "",
+    headline8: r.headline8 ?? "",
+    headline9: r.headline9 ?? "",
+    campaign_date: r.campaign_date ?? undefined,
+  });
+
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -99,17 +148,47 @@ export default function CampaignSetRequestsPage() {
     await load();
   };
   const handleRecreate = async (req: RequestItem) => {
-    console.log("Recreate")
-    await load();
+    try {
+      setReqOverlayOpen(false);
+
+      const res = await fetch(
+        `/api/campaigns/requests-recreate?id=${encodeURIComponent(String(req.id))}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+          credentials: "include",
+        }
+      );
+
+      const text = await res.text();
+      let json: any = {};
+      try { json = text ? JSON.parse(text) : {}; } catch { json = {}; }
+
+      if (!res.ok || json?.success === false) {
+        console.error("Recreate failed:", json);
+        alert(json?.message || "Failed to recreate campaigns for this request.");
+        return;
+      }
+
+      await load();
+    } catch (e) {
+      console.error(e);
+      alert("Unexpected error while recreating campaigns.");
+    }
   };
   const handleEditCampaign = (c: any) => {
-    console.log("Edit")
     console.log("Edit campaign", c);
   };
   const handleDeleteCampaign = async (c: any) => {
     console.log("Delete Camp")
     setCampOverlayOpen(false);
     await load();
+  };
+
+  const handleEditRequest = (req: RequestItem) => {
+    setEditOf(req);
+    setEditOpen(true);
   };
 
   const q = query.trim().toLowerCase();
@@ -221,6 +300,97 @@ export default function CampaignSetRequestsPage() {
 
   const data = hasFilter || q ? fullyFiltered : items;
 
+  const GLOBAL_STORAGE_KEY = "req:global:visibleCols";
+
+  const allColumns = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const req of data) {
+      for (const row of req.campaigns ?? []) {
+        if (row && typeof row === "object") Object.keys(row).forEach((k) => set.add(k));
+      }
+    }
+    const preferred = [
+      "campaign_name",
+      "campaign_status",
+      "campaign_id",
+      "tracking_link",
+      "creative_sub_folder",
+      "creatives_folder",
+      "sub_folder_type",
+      "ad_platform",
+      "ad_account_id",
+      "country",
+      "device",
+      "built_time",
+      "created_at",
+      "updated_at",
+      "request_id",
+      "requester",
+      "error_message",
+    ];
+    const rest = [...set].filter((k) => !preferred.includes(k)).sort();
+    return [...preferred.filter((k) => set.has(k)), ...rest];
+  }, [data]);
+
+  const defaultVisible = React.useMemo(
+    () =>
+      allColumns.filter((k) =>
+        [
+          "campaign_name",
+          "campaign_status",
+          "campaign_id",
+          "tracking_link",
+          "creative_sub_folder",
+          "creatives_folder",
+          "sub_folder_type",
+          "built_time",
+        ].includes(k)
+      ),
+    [allColumns]
+  );
+
+  const [visibleCols, setVisibleCols] = React.useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(GLOBAL_STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return defaultVisible;
+  });
+
+  React.useEffect(() => {
+    setVisibleCols((prev) => {
+      const cleaned = prev.filter((k) => allColumns.includes(k));
+      return cleaned.length ? cleaned : defaultVisible;
+    });
+  }, [allColumns, defaultVisible]);
+
+  React.useEffect(() => {
+    localStorage.setItem(GLOBAL_STORAGE_KEY, JSON.stringify(visibleCols));
+  }, [visibleCols]);
+
+  const onCampaignRequests = pathname === "/";
+
+  const handleSocketUpdate = React.useCallback(
+    ({ request_id, campaigns }: { request_id: string | number; campaigns: Campaign[] }) => {
+      console.log("[socket:test] incoming payload:", { request_id, campaigns });
+      setItems(prev =>
+        prev.map(req =>
+          String(req.id) !== String(request_id)
+            ? req
+            : { ...req, campaigns: mergeCampaigns(req.campaigns ?? [], campaigns ?? []) }
+        )
+      );
+    },
+    [onCampaignRequests]
+  );
+
+  React.useEffect(() => {
+    if (!socket || !onCampaignRequests) return;
+    socket.on("updatedCampaignStatus", handleSocketUpdate);
+    return () => {
+      socket.off("updatedCampaignStatus", handleSocketUpdate);
+    };
+  }, [socket, onCampaignRequests, handleSocketUpdate]);
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -235,6 +405,15 @@ export default function CampaignSetRequestsPage() {
           </Button>
         </Stack>
       </Stack>
+      <ColumnsMenu
+        allColumns={allColumns}
+        visible={visibleCols}
+        defaultVisible={defaultVisible}
+        onChange={setVisibleCols}
+        storageKey="req:global:visibleCols"
+        sx={{ mb: 1.5 }}
+      />
+
       <RequestsFilter
         value={filters}
         onChange={setFilters}
@@ -259,6 +438,7 @@ export default function CampaignSetRequestsPage() {
                 req={req}
                 onOpenRequest={openRequest}
                 onOpenCampaign={openCampaign}
+                visibleCols={visibleCols}
               />
             ))}
           </Stack>
@@ -283,6 +463,7 @@ export default function CampaignSetRequestsPage() {
         onDeleteAll={handleDeleteAll}
         onRecreate={handleRecreate}
         onOpenCampaign={openCampaign}
+        onEditRequest={handleEditRequest}
       />
 
       <CampaignDetailsOverlay
@@ -294,6 +475,23 @@ export default function CampaignSetRequestsPage() {
       />
 
       <NewRequestDialog open={openNew} onClose={() => setOpenNew(false)} onCreated={load} />
+
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="md">
+        <Box sx={{ p: { xs: 1.5, md: 2 } }}>
+          {editOf && (
+            <NewRequestForm
+              title="Edit Request"
+              editOf={editOf.id}
+              defaultValues={mapRequestToFormDefaults(editOf)}
+              submitLabel="Save changes"
+              onSubmitted={() => {
+                setEditOpen(false);
+                setEditOf(null);
+              }}
+            />
+          )}
+        </Box>
+      </Dialog>
     </Box>
   );
 }
