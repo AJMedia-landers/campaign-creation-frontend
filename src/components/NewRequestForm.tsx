@@ -56,6 +56,7 @@ export type NewRequestFormProps = {
   submitLabel?: string;
   onSubmitted?: (res: CampaignCreateResponse) => void;
   title?: string;
+  editOf?: number | string;
 };
 
 export default function NewRequestForm({
@@ -63,7 +64,9 @@ export default function NewRequestForm({
   submitLabel = "Create request",
   onSubmitted,
   title = "New Request Form",
+  editOf,
 }: NewRequestFormProps) {
+  const effectiveSubmitLabel = submitLabel ?? (editOf ? "Save changes" : "Create request");
   const router = useRouter();
   
   const [submitting, setSubmitting] = useState(false);
@@ -347,8 +350,14 @@ export default function NewRequestForm({
     setSubmitting(true);
     try {
       const payload = buildPayload();
-      const res = await fetch("/api/campaigns/create", {
-        method: "POST",
+      const url = editOf
+        ? `/api/campaigns/requests?id=${editOf}`
+        : `/api/campaigns/create`;
+
+      const method = editOf ? "PATCH" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -366,9 +375,11 @@ export default function NewRequestForm({
       setToastSeverity("success");
       setToastOpen(true);
       onSubmitted?.(json);
-      setTimeout(() => {
-        router.replace("/");
-      }, 3000);
+      if (!editOf) {
+        setTimeout(() => {
+          router.replace("/");
+        }, 3000);
+      }
     } catch (err: any) {
       setResult({ ok: false, msg: err.message || "Request failed" });
     } finally {
@@ -738,7 +749,7 @@ export default function NewRequestForm({
           ))}
 
           <Button type="submit" variant="contained" disabled={submitting}>
-            {submitting ? "Submitting..." : submitLabel}
+            {submitting ? (editOf ? "Saving…" : "Submitting…") : effectiveSubmitLabel}
           </Button>
 
           {result && (

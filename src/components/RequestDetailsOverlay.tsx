@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import {
-  AppBar, Box, Button, Chip, Dialog, Divider, Drawer, IconButton,
+  AppBar, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Drawer, IconButton,
   Stack, Toolbar, Typography
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
@@ -18,49 +18,97 @@ type Props = {
   onDeleteAll?: (req: RequestItem) => void;
   onRecreate?: (req: RequestItem) => void;
   onOpenCampaign?: (row: any) => void;
+
+  onEditRequest?: (req: RequestItem) => void;
 };
 
 export default function RequestDetailsOverlay({
-  open, onClose, data, onDeleteAll, onRecreate, onOpenCampaign,
+  open, onClose, data, onDeleteAll, onRecreate, onOpenCampaign, onEditRequest
 }: Props) {
   const [expanded, setExpanded] = React.useState(false);
   React.useEffect(() => { if (!open) setExpanded(false); }, [open]);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
   const HeaderBar = (
-    <Toolbar sx={{ px: 2 }}>
-      <Typography sx={{ flex: 1 }} variant="h6" noWrap>
-        {buildRequestTitle(data)}
-      </Typography>
+    <>
+      <Toolbar sx={{ px: 2, flexDirection: "column", alignItems: "flex-start", gap: "10px"}}>
+        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" width="100%">
+          <Stack direction="row" spacing={1}>
+            {data && (
+              <>
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={() => onEditRequest?.(data)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  Recreate campaigns
+                </Button>
+                </>
+              )}
+          </Stack>
 
-      <Stack direction="row" spacing={1} alignItems="center">
-        {/* <Button
-          size="small"
-          color="error"
-          variant="outlined"
-          onClick={() => data && onDeleteAll?.(data)}
-        >
-          Delete all
-        </Button>
-        <Button
-          size="small"
-          variant="contained"
-          onClick={() => data && onRecreate?.(data)}
-        >
-          Recreate campaigns
-        </Button> */}
+          {/* <Button
+            size="small"
+            color="error"
+            variant="outlined"
+            onClick={() => data && onDeleteAll?.(data)}
+          >
+            Delete all
+          </Button>
+          */}
 
-        <IconButton
-          aria-label={expanded ? "shrink" : "expand"}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? <CloseFullscreenIcon /> : <OpenInFullIcon />}
-        </IconButton>
+          <Stack direction="row" spacing={1}>
+            <IconButton
+              aria-label={expanded ? "shrink" : "expand"}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? <CloseFullscreenIcon /> : <OpenInFullIcon />}
+            </IconButton>
 
-        <IconButton onClick={onClose} aria-label="close">
-          <CloseIcon />
-        </IconButton>
-      </Stack>
-    </Toolbar>
+            <IconButton onClick={onClose} aria-label="close">
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+
+        </Stack>
+        <Typography sx={{ flex: 1, maxWidth: "100%" }} variant="h6" noWrap>
+          {buildRequestTitle(data)}
+        </Typography>
+      </Toolbar>
+
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+        <DialogTitle>Recreate campaigns?</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mt: 0.5 }}>
+            <strong>Have you updated your campaign request?</strong>
+            <br />
+            If you don&apos;t, the same campaigns will be created as before.
+            Please double-check.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)} variant="outlined">
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              setConfirmOpen(false);
+              if (data) onRecreate?.(data);
+            }}
+            variant="contained"
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 
   const Body = (
