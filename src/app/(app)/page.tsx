@@ -371,17 +371,21 @@ export default function CampaignSetRequestsPage() {
   const onCampaignRequests = pathname === "/";
 
   const handleSocketUpdate = React.useCallback(
-    ({ request_id, campaigns }: { request_id: string | number; campaigns: Campaign[] }) => {
-      console.log("[socket:test] incoming payload:", { request_id, campaigns });
-      setItems(prev =>
-        prev.map(req =>
-          String(req.id) !== String(request_id)
-            ? req
-            : { ...req, campaigns: mergeCampaigns(req.campaigns ?? [], campaigns ?? []) }
-        )
-      );
+    (payload: [{ request_id: string | number; campaigns: Campaign[] }]) => {
+      console.log("[socket:test] incoming payload:", payload);
+      if (payload.length) {
+        payload.map((item: { request_id: string | number; campaigns: Campaign[] }) => {
+          setItems(prev =>
+            prev.map(req =>
+              String(req.id) !== String(item.request_id)
+                ? req
+                : { ...req, campaigns: mergeCampaigns(req.campaigns ?? [], item.campaigns ?? []) }
+            )
+          );
+        })
+      }
     },
-    [onCampaignRequests]
+    []
   );
 
   React.useEffect(() => {
