@@ -4,8 +4,6 @@ import React, {
   createContext,
   useContext,
   useEffect,
-  useMemo,
-  useRef,
   useState,
 } from "react";
 import { io, type Socket } from "socket.io-client";
@@ -24,7 +22,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const url = process.env.NEXT_PUBLIC_SOCKET_URL!;
   const [token, setToken] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -41,42 +39,39 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!initialized || !token) return;
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
+    if (!initialized || !token) {
+      setSocket(null);
+      return;
     }
 
-    const socket = io(url, {
+    const newSocket = io(url, {
       transports: ["websocket"],
       auth: { token },
     });
 
-    socketRef.current = socket;
+    setSocket(newSocket);
 
     // logs
-    socket.on("connect", () => console.log("[socket] connected", socket.id));
-    socket.on("disconnect", (reason) =>
+    newSocket.on("connect", () => console.log("[socket] connected", newSocket.id));
+    newSocket.on("disconnect", (reason) =>
       console.log("[socket] disconnected:", reason)
     );
-    socket.on("connect_error", (e) =>
+    newSocket.on("connect_error", (e) =>
       console.log("[socket] connect_error:", e.message)
     );
 
     // cleanup
     return () => {
-      socket.close();
+      newSocket.close();
+      setSocket(null);
     };
   }, [url, initialized, token]);
 
-  // Stable ctx value
-  const ctx = useMemo<SocketCtxValue>(
-    () => ({
-      socket: socketRef.current,
-      setSocketToken: (t) => setToken(t),
-    }),
-    []
-  );
+  // Context value updates when socket state changes
+  const ctx: SocketCtxValue = {
+    socket,
+    setSocketToken: setToken,
+  };
 
   return <SocketCtx.Provider value={ctx}>{children}</SocketCtx.Provider>;
 }
