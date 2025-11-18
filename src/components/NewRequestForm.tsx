@@ -14,9 +14,24 @@ import {
   IconButton,
   Autocomplete,
   Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Checkbox,
+  InputAdornment,
+  CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
+import FolderIcon from "@mui/icons-material/Folder";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs, { Dayjs } from "dayjs";
@@ -50,6 +65,7 @@ const CTA_OPTIONS = ["Learn more", "Shop now", "Read more"];
 type ClientName = { id?: string; name: string } | string;
 type ObAccount = { id: string; name: string, marketer_id: string };
 type RawTzRow = { country: string; timezone: string };
+type FolderItem = { id: string; name: string };
 
 export type NewRequestFormProps = {
   defaultValues?: Partial<CampaignRequestInput & UIExtras>;
@@ -73,11 +89,20 @@ export default function NewRequestForm({
   const [result, setResult] = useState<{ ok: boolean; msg: string; id?: string } | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  // Folder selection modal state
+  const [folderModalOpen, setFolderModalOpen] = useState(false);
+  const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
+  const [availableFolders, setAvailableFolders] = useState<FolderItem[]>([]);
+  const [loadingFolders, setLoadingFolders] = useState(false);
+  const [folderError, setFolderError] = useState<string | null>(null);
+  const [driveUrlInput, setDriveUrlInput] = useState("");
+
   // ---- form state
   const [form, setForm] = useState<CampaignRequestInput>({
-    campaign_type: "",
+    campaign_name_post_fix: "",
     client_name: "",
     creatives_folder: "",
+    folder_ids: [],
     ad_platform: [],
     ad_account_id: "",
     brand_name: "",
@@ -283,6 +308,103 @@ export default function NewRequestForm({
     if (Array.isArray(vals)) onChange("device", vals);
   };
 
+  const loadFoldersFromDrive = async (driveUrl: string) => {
+    if (!driveUrl.trim()) {
+      setFolderError("Please enter a Google Drive URL");
+      return;
+    }
+
+    setLoadingFolders(true);
+    setFolderError(null);
+    setAvailableFolders([]);
+
+    try {
+      const res = await fetch("/api/drive-folders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ driveUrl }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to load folders");
+      }
+
+      const folders: FolderItem[] = data.data.folders || [];
+      setAvailableFolders(folders);
+
+      if (folders.length === 0) {
+        setFolderError("No folders found in the specified Drive location");
+      }
+    } catch (error) {
+      console.error("Error loading folders:", error);
+      setFolderError(
+        error instanceof Error ? error.message : "Failed to load folders from Google Drive"
+      );
+    } finally {
+      setLoadingFolders(false);
+    }
+  };
+
+  const handleFolderToggle = (folderId: string) => {
+    setSelectedFolders(prev =>
+      prev.includes(folderId)
+        ? prev.filter(id => id !== folderId)
+        : [...prev, folderId]
+    );
+  };
+
+  const handleSelectAllFolders = () => {
+    if (selectedFolders.length === availableFolders.length) {
+      setSelectedFolders([]);
+    } else {
+      setSelectedFolders(availableFolders.map(f => f.id));
+    }
+  };
+
+  const handleConfirmFolderSelection = () => {
+    onChange("folder_ids", selectedFolders);
+
+    setFolderModalOpen(false);
+    
+    if (selectedFolders.length === 0) {
+      setToastMsg("No folders selected - all folders will be used");
+      setToastSeverity("info");
+    } else if (selectedFolders.length === availableFolders.length) {
+      setToastMsg("All folders selected");
+      setToastSeverity("success");
+    } else {
+      const selectedFolderNames = availableFolders
+        .filter(folder => selectedFolders.includes(folder.id))
+        .map(folder => folder.name)
+        .join(", ");
+      
+      setToastMsg(`${selectedFolders.length} folder${selectedFolders.length !== 1 ? 's' : ''} selected: ${selectedFolderNames}`);
+      setToastSeverity("success");
+    }
+    setToastOpen(true);
+  };
+
+  const openFolderModal = () => {
+    const currentDriveUrl = form.creatives_folder?.trim();
+    
+    if (!currentDriveUrl) {
+      setToastMsg("Please enter a Google Drive folder URL first");
+      setToastSeverity("warning");
+      setToastOpen(true);
+      return;
+    }
+    
+    setDriveUrlInput(currentDriveUrl);
+    setSelectedFolders(form.folder_ids || []);
+    setFolderModalOpen(true);
+    
+    loadFoldersFromDrive(currentDriveUrl);
+  };
+
   // ---- steppers
   const stepNum = (
     key: "hours_start" | "hours_end" | "daily_budget",
@@ -300,7 +422,7 @@ export default function NewRequestForm({
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.client_name?.trim()) e.client_name = "Required";
-    if (!form.campaign_type?.trim()) e.campaign_type = "Required";
+    if (!form.campaign_name_post_fix?.trim()) e.campaign_name_post_fix = "Required";
     if (!form.creatives_folder?.trim()) e.creatives_folder = "Required";
     if (!form.ad_platform?.length) e.ad_platform = "Select at least one platform";
     if (form.ad_platform.includes("Outbrain") && !form.ad_account_id)
@@ -319,6 +441,13 @@ export default function NewRequestForm({
       timezone: form.timezone,
       campaign_date: date ? date.format("YYYY-MM-DD") : undefined,
     };
+    
+    if (form.folder_ids && form.folder_ids.length > 0) {
+      payload.folder_ids = form.folder_ids;
+    } else {
+      delete payload.folder_ids;
+    }
+    
     if (!form.ad_platform.includes("Outbrain")) delete payload.ad_account_id;
     return payload as CampaignRequestInput;
   };
@@ -326,7 +455,7 @@ export default function NewRequestForm({
   // ---- toast
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
-  const [toastSeverity, setToastSeverity] = useState<"success" | "error">("error");
+  const [toastSeverity, setToastSeverity] = useState<"success" | "error" | "warning" | "info">("error");
 
   function formatBackendErrors(json: any): string {
     const errs = Array.isArray(json?.errors) ? json.errors : [];
@@ -454,17 +583,17 @@ export default function NewRequestForm({
           />
 
           <TextField
-            label="CampaignType"
-            value={form.campaign_type}
-            onChange={(e) => onChange("campaign_type", e.target.value)}
+            label="CampaignNamePostFix"
+            value={form.campaign_name_post_fix}
+            onChange={(e) => onChange("campaign_name_post_fix", e.target.value)}
             onBlur={() =>
               setErrors((p) => ({
                 ...p,
-                campaign_type: form.campaign_type?.trim() ? "" : "Required",
+                campaign_name_post_fix: form.campaign_name_post_fix?.trim() ? "" : "Required",
               }))
             }
-            error={!!errors.campaign_type}
-            helperText={errors.campaign_type}
+            error={!!errors.campaign_name_post_fix}
+            helperText={errors.campaign_name_post_fix}
             required
             fullWidth
           />
@@ -485,11 +614,15 @@ export default function NewRequestForm({
             />
           </LocalizationProvider>
 
+          {/* CreativesFolder with Browse Button */}
           <TextField
             label="CreativesFolder (needs to be shared with ivan.plametiuk@ajmedia.io)"
-            placeholder="http://"
+            placeholder="Paste Google Drive folder URL here..."
             value={form.creatives_folder}
-            onChange={(e) => onChange("creatives_folder", e.target.value)}
+            onChange={(e) => {
+              onChange("creatives_folder", e.target.value);
+              onChange("folder_ids", []);
+            }}
             onBlur={() =>
               setErrors((p) => ({
                 ...p,
@@ -497,9 +630,29 @@ export default function NewRequestForm({
               }))
             }
             error={!!errors.creatives_folder}
-            helperText={errors.creatives_folder}
+            helperText={
+              errors.creatives_folder || 
+              (form.folder_ids && form.folder_ids.length > 0 
+                ? `${form.folder_ids.length} specific folder${form.folder_ids.length !== 1 ? 's' : ''} selected` 
+                : "All folders will be used")
+            }
             required
             fullWidth
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<FolderOpenIcon />}
+                    onClick={openFolderModal}
+                    disabled={!form.creatives_folder?.trim()}
+                  >
+                    Browse
+                  </Button>
+                </InputAdornment>
+              ),
+            }}
           />
 
           {/* AdPlatform */}
@@ -760,6 +913,112 @@ export default function NewRequestForm({
         </Stack>
       </Box>
     </Box>
+
+    {/* Folder Selection Modal */}
+    <Dialog
+      open={folderModalOpen}
+      onClose={() => setFolderModalOpen(false)}
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle>
+        <Typography variant="h6">Select Creative Folders</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          {driveUrlInput}
+        </Typography>
+      </DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          {/* Error Message */}
+          {folderError && (
+            <Alert severity="error" onClose={() => setFolderError(null)}>
+              {folderError}
+            </Alert>
+          )}
+
+          {/* Loading State */}
+          {loadingFolders && (
+            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+              <CircularProgress />
+              <Typography variant="body2" sx={{ ml: 2 }}>
+                Loading folders from Google Drive...
+              </Typography>
+            </Box>
+          )}
+
+          {/* Folder List */}
+          {!loadingFolders && availableFolders.length > 0 && (
+            <>
+              <Box display="flex" justifyContent="space-between" alignItems="center">
+                <Typography variant="body2" color="text.secondary">
+                  {availableFolders.length} folder{availableFolders.length !== 1 ? 's' : ''} found
+                </Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleSelectAllFolders}
+                >
+                  {selectedFolders.length === availableFolders.length ? 'Deselect All' : 'Select All'}
+                </Button>
+              </Box>
+
+              <List sx={{ maxHeight: 400, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                {availableFolders.map((folder) => {
+                  const isSelected = selectedFolders.includes(folder.id);
+                  return (
+                    <ListItem key={folder.id} disablePadding>
+                      <ListItemButton onClick={() => handleFolderToggle(folder.id)} dense>
+                        <ListItemIcon>
+                          <Checkbox
+                            edge="start"
+                            checked={isSelected}
+                            tabIndex={-1}
+                            disableRipple
+                          />
+                        </ListItemIcon>
+                        <ListItemIcon>
+                          <FolderIcon color={isSelected ? "primary" : "action"} />
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary={folder.name}
+                          primaryTypographyProps={{
+                            fontWeight: isSelected ? 600 : 400
+                          }}
+                        />
+                      </ListItemButton>
+                    </ListItem>
+                  );
+                })}
+              </List>
+
+              {selectedFolders.length > 0 && (
+                <Alert severity="info">
+                  Selected: {selectedFolders.length} folder{selectedFolders.length !== 1 ? 's' : ''}
+                  {selectedFolders.length === availableFolders.length && " (all folders)"}
+                </Alert>
+              )}
+
+              <Alert severity="info">
+                <Typography variant="body2">
+                  <strong>Tip:</strong> If you don't select any folders, all folders will be used for campaign creation.
+                </Typography>
+              </Alert>
+            </>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setFolderModalOpen(false)}>Cancel</Button>
+        <Button
+          onClick={handleConfirmFolderSelection}
+          variant="contained"
+          disabled={loadingFolders}
+        >
+          {selectedFolders.length === 0 ? 'Use All Folders' : `Use ${selectedFolders.length} Selected`}
+        </Button>
+      </DialogActions>
+    </Dialog>
+
     <ConfirmBeforeSubmit
       open={confirmOpen}
       onCancel={() => setConfirmOpen(false)}
