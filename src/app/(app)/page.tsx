@@ -100,7 +100,7 @@ export default function CampaignSetRequestsPage() {
   const [editOf, setEditOf] = React.useState<RequestItem | null>(null);
 
   const mapRequestToFormDefaults = (r: RequestItem) => ({
-    campaign_type: r.campaign_type ?? "",
+    campaign_name_post_fix: r.campaign_name_post_fix ?? "",
     client_name: r.client_name ?? "",
     creatives_folder: r.creatives_folder ?? "",
     ad_platform: Array.isArray(r.ad_platform) ? r.ad_platform : (r.ad_platform ? [r.ad_platform] : []),
@@ -124,6 +124,7 @@ export default function CampaignSetRequestsPage() {
     headline8: r.headline8 ?? "",
     headline9: r.headline9 ?? "",
     campaign_date: r.campaign_date ?? undefined,
+    folder_ids: r.folder_ids ?? [],
   });
 
 
@@ -200,7 +201,7 @@ export default function CampaignSetRequestsPage() {
     return items
       .map((req) => {
         const requestLevelValues = [
-          req.campaign_type,
+          req.campaign_name_post_fix,
           req.ad_account_id,
           buildRequestTitle(req),
           req.first_name,

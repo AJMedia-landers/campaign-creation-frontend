@@ -22,12 +22,12 @@ export function buildRequestTitle(req: any) {
     ? req.device.join("/")
     : (req?.device || "");
 
-  const ctype = req?.campaign_type || "";
+  const ctype = req?.campaign_name_post_fix || "";
 
   const title = [datePart, firstName, client, countryCode, device, ctype]
     .filter(Boolean)
     .join(" – ");
 
   // fallback
-  return title || `${req?.brand_name ?? "Request"} — ${req?.campaign_type ?? "Type N/A"}`;
+  return title || `${req?.brand_name ?? "Request"} — ${req?.campaign_name_post_fix ?? "Type N/A"}`;
 }
