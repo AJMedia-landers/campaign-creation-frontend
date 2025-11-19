@@ -17,6 +17,7 @@ export interface CampaignRequestInput {
   creative_description?: string;
   headline1?: string; headline2?: string; headline3?: string; headline4?: string; headline5?: string;
   headline6?: string; headline7?: string; headline8?: string; headline9?: string; headline10?: string;
+  review_flag?: boolean;
 }
 
 /** UI-only */
@@ -111,4 +112,5 @@ export type RequestItem = {
   email: string | null;
   folder_ids?: string[];
   campaigns?: Campaign[];
+  review_flag?: boolean;
 };

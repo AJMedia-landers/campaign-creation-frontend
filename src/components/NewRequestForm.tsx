@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { ClipboardEvent } from "react";
 import {
   Box,
   Button,
@@ -31,13 +32,11 @@ import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import FolderIcon from "@mui/icons-material/Folder";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs, { Dayjs } from "dayjs";
-import customParseFormat from "dayjs/plugin/customParseFormat";
-dayjs.extend(customParseFormat);
 import { useRouter } from "next/navigation";
+
 
 import type {
   CampaignRequestInput,
@@ -87,7 +86,6 @@ export default function NewRequestForm({
   
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string; id?: string } | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Folder selection modal state
   const [folderModalOpen, setFolderModalOpen] = useState(false);
@@ -136,6 +134,35 @@ export default function NewRequestForm({
   const onExtra = (k: keyof UIExtras, v: any) => {
     setExtras((prev) => ({ ...prev, [k]: v }));
     setErrors((prev) => ({ ...prev, [k]: "" }));
+  };
+
+  const handleHeadline1Paste = (
+    e: ClipboardEvent<HTMLDivElement>
+  ) => {
+    const text = e.clipboardData.getData("text");
+    if (!text) return;
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    if (lines.length <= 1) return;
+
+    e.preventDefault();
+
+    setForm((prev) => {
+      const next: any = { ...prev };
+      lines.slice(0, 10).forEach((line, idx) => {
+        const field = `headline${idx + 1}`;
+        next[field] = line;
+      });
+      return next;
+    });
+
+    if (lines[0]) {
+      setErrors((prev) => ({ ...prev, headline1: "" }));
+    }
   };
 
   // Client names
@@ -516,16 +543,6 @@ export default function NewRequestForm({
     }
   };
 
-  // open modal before submit
-  const handlePreSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const eMap = validate();
-    if (Object.keys(eMap).length) {
-      setErrors(eMap);
-      return;
-    }
-    setConfirmOpen(true);
-  };
 
   return (
     <>
@@ -552,7 +569,13 @@ export default function NewRequestForm({
         </Alert>
       </Snackbar>
 
-      <Box component="form" onSubmit={handlePreSubmit}>
+      <Box
+        component="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          doSubmit();
+        }}
+      >
         <Stack spacing={2}>
           {/* <TextField
             label="CampaignNickname"
@@ -879,6 +902,7 @@ export default function NewRequestForm({
             label="Headline1"
             value={form.headline1 || ""}
             onChange={(e) => onChange("headline1", e.target.value)}
+            onPaste={handleHeadline1Paste}
             onBlur={() =>
               setErrors((p) => ({
                 ...p,
@@ -922,7 +946,9 @@ export default function NewRequestForm({
       fullWidth
     >
       <DialogTitle>
-        <Typography variant="h6">Select Creative Folders</Typography>
+        <Typography variant="h6" component="span">
+          Select Creative Folders
+        </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
           {driveUrlInput}
         </Typography>
@@ -1018,15 +1044,6 @@ export default function NewRequestForm({
         </Button>
       </DialogActions>
     </Dialog>
-
-    <ConfirmBeforeSubmit
-      open={confirmOpen}
-      onCancel={() => setConfirmOpen(false)}
-      onConfirm={() => {
-        setConfirmOpen(false);
-        doSubmit();   // submit only after user confirms
-      }}
-    />
     </>
   );
 }
