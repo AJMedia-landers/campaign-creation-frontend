@@ -7,6 +7,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
+import { campaignStatusColor } from "@/lib/statusColor";
 
 type Props = {
   open: boolean;
@@ -25,11 +26,7 @@ export default function CampaignDetailsOverlay({
   const c = data || {};
   const status = String(c?.campaign_status ?? "");
   const isErr = /error/i.test(status);
-  const color =
-    isErr ? "error" :
-    /completed|created|done|success|ok|ready/i.test(status) ? "success" :
-    /processing|running|sent|pending|progress|building/i.test(status) ? "warning" :
-    "default";
+  const color = isErr ? "error" : campaignStatusColor(status);
 
   const HIDDEN_FIELDS = React.useMemo(() => new Set(["id", "request_id"]), []);
   const visibleEntries = React.useMemo(

@@ -17,6 +17,7 @@ import {
   TextField,
   IconButton,
   Typography,
+  Autocomplete,
 } from "@mui/material";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import ClearAllIcon from "@mui/icons-material/ClearAll";
@@ -64,6 +65,70 @@ const setDateField =
 
 export default function RequestsFilter({ value, onChange, onClear }: Props) {
   const [open, setOpen] = React.useState(false);
+  const [requesters, setRequesters] = React.useState<string[]>([]);
+  const [clientNames, setClientNames] = React.useState<string[]>([]);
+  const [countries, setCountries] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadOptions = async () => {
+      try {
+        const [reqRes, clientRes, countryRes] = await Promise.all([
+          fetch("/api/requesters"),
+          fetch("/api/client-names"),
+          fetch("/api/country-timezones"),
+        ]);
+
+        if (cancelled) return;
+
+        // --- Requesters (mock API you created) ---
+        if (reqRes.ok) {
+          const json = await reqRes.json();
+          const arr = Array.isArray(json) ? json : [];
+          setRequesters([...new Set(arr.filter(Boolean))]);
+        }
+
+        // --- Client names ---
+        if (clientRes.ok) {
+          const json = await clientRes.json();
+          const list = Array.isArray(json.data) ? json.data : [];
+          setClientNames(
+            Array.from(
+              new Set(
+                list
+                  .map((x: any) => x?.name || "")
+                  .filter(Boolean)
+              )
+            ) as string[]
+          );
+        }
+
+        // --- Countries ---
+        if (countryRes.ok) {
+          const json = await countryRes.json();
+          const list = Array.isArray(json.data) ? json.data : [];
+          setCountries(
+            Array.from(
+              new Set(
+                list
+                  .map((x: any) => x?.country || "")
+                  .filter(Boolean)
+              )
+            ) as string[]
+          );
+        }
+      } catch (err) {
+        console.error("Failed to load filter options", err);
+      }
+    };
+
+    loadOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
 
   const handleArray =
     (key: keyof RequestsFilterValue) =>
@@ -122,33 +187,62 @@ export default function RequestsFilter({ value, onChange, onClear }: Props) {
             sx={{ gap: 2 }}
           >
             {/* Requester */}
-            <TextField
+            <Autocomplete
               size="small"
-              label="Requester"
-              placeholder="e.g., Mai"
-              value={value.requester}
-              onChange={handleText("requester")}
               sx={{ minWidth: 220 }}
+              options={requesters}
+              value={value.requester || ""}
+              onChange={(_, newValue) =>
+                onChange({ ...value, requester: newValue || "" })
+              }
+              freeSolo={false}
+              disableClearable
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Requester"
+                  placeholder="Start typing a name…"
+                />
+              )}
             />
 
             {/* ClientName */}
-            <TextField
+            <Autocomplete
               size="small"
-              label="Client Name"
-              placeholder="e.g., HearingAid"
-              value={value.clientName}
-              onChange={handleText("clientName")}
               sx={{ minWidth: 220 }}
+              options={clientNames}
+              value={value.clientName || ""}
+              disableClearable
+              onChange={(_, newValue) =>
+                onChange({ ...value, clientName: newValue || "" })
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Client Name"
+                  placeholder="Start typing a client…"
+                />
+              )}
             />
 
-            {/* Country (free text) */}
-            <TextField
+
+            {/* Country */}
+            <Autocomplete
               size="small"
-              label="Country"
-              placeholder="e.g., DE or Germany"
-              value={value.country}
-              onChange={handleText("country")}
               sx={{ minWidth: 220 }}
+              options={countries}
+              value={value.country || ""}
+              disableClearable
+              onChange={(_, newValue) =>
+                onChange({ ...value, country: newValue || "" })
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Country"
+                  placeholder="Start typing a country…"
+                />
+              )}
             />
 
             {/* Status */}

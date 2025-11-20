@@ -37,6 +37,7 @@ import RestoreIcon from "@mui/icons-material/Restore";
 import { RequestItem } from "@/types/campaign";
 import { buildRequestTitle } from "@/lib/requestTitle";
 import { toDate, toNumber } from "@/lib/sortHelpers";
+import { campaignStatusColor } from "@/lib/statusColor";
 
 const isUrl = (v: unknown) => typeof v === "string" && /^https?:\/\//i.test(v);
 
@@ -200,15 +201,6 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
     document.addEventListener("mouseup", endDrag);
   };
 
-  /** Status */
-  const statusColor = (raw: string | undefined) => {
-    const s = (raw || "").toLowerCase();
-    if (/error|failed|fail/.test(s)) return "error";
-    if (/completed|created|done|success|ok|ready/.test(s)) return "success";
-    if (/processing|running|sent|pending|in\s*progress|building/.test(s)) return "warning";
-    return "default";
-  };
-
   const renderCell = (key: string, row: any) => {
     const raw = row?.[key];
 
@@ -218,7 +210,7 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
       const label = isError
       ? row?.error_message || "Error"
       : (s || "—");
-      const color = isError ? "error" : statusColor(s);
+      const color = isError ? "error" : campaignStatusColor(s);
       return (
         <Chip
           size="small"
@@ -446,13 +438,7 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
               <Chip
                 size="small"
                 label={req.status}
-                color={
-                  /completed|created|done/i.test(req.status)
-                    ? "success"
-                    : /processing|running|sent/i.test(req.status)
-                    ? "warning"
-                    : "default"
-                }
+                color={campaignStatusColor(req.status) as "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning"}
                 variant="outlined"
               />
             )}
