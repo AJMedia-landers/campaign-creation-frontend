@@ -31,6 +31,7 @@ import { usePathname } from "next/navigation";
 
 // ---- fetch helper
 type FetchResult = { items: RequestItem[]; total: number };
+type LanguageOption = { id: string | number; name: string };
 async function fetchRequests(page = 1, limit = 20): Promise<FetchResult> {
   const res = await fetch(`/api/campaigns/campaigns-by-request?page=${page}&limit=${limit}`, { credentials: "include" });
   const text = await res.text();
@@ -96,6 +97,7 @@ export default function CampaignSetRequestsPage() {
   const [total, setTotal] = React.useState(0);
   const [page, setPage] = React.useState(0);
   const [rowsPerPage] = React.useState(20); // selector hidden
+  const [languages, setLanguages] = React.useState<LanguageOption[]>([]);
 
   // overlays
   const [reqOverlayOpen, setReqOverlayOpen] = React.useState(false);
@@ -135,6 +137,31 @@ export default function CampaignSetRequestsPage() {
     campaign_date: r.campaign_date ?? undefined,
     folder_ids: r.folder_ids ?? [],
   });
+
+  React.useEffect(() => {
+    let canceled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/campaigns/revcontent/languages", {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        const list = Array.isArray(payload?.data) ? payload.data : payload;
+        if (!canceled) {
+          setLanguages((list || []) as LanguageOption[]);
+        }
+      } catch (err) {
+        if (!canceled) {
+          console.error("Failed to load languages", err);
+          setLanguages([]);
+        }
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
 
   const load = React.useCallback(async () => {
@@ -506,6 +533,7 @@ export default function CampaignSetRequestsPage() {
                 onOpenRequest={openRequest}
                 onOpenCampaign={openCampaign}
                 visibleCols={visibleCols}
+                languages={languages}
               />
             ))}
           </Stack>
@@ -539,11 +567,12 @@ export default function CampaignSetRequestsPage() {
         data={campForOverlay}
         onEdit={handleEditCampaign}
         onDelete={handleDeleteCampaign}
+        languages={languages}
       />
 
       <NewRequestDialog open={openNew} onClose={() => setOpenNew(false)} onCreated={load} />
 
-      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="md">
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="lg">
         <Box sx={{ p: { xs: 1.5, md: 2 } }}>
           {editOf && (
             <NewRequestForm

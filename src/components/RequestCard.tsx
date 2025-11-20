@@ -41,14 +41,17 @@ import { campaignStatusColor } from "@/lib/statusColor";
 
 const isUrl = (v: unknown) => typeof v === "string" && /^https?:\/\//i.test(v);
 
+type LanguageOption = { id: string | number; name: string };
+
 interface RequestCardProps {
   req: RequestItem;
   onOpenRequest: (r: RequestItem) => void;
   onOpenCampaign: (row: any) => void;
   visibleCols?: string[];
+  languages?: LanguageOption[];
 }
 
-export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibleCols: externalVisible }: RequestCardProps) {
+export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibleCols: externalVisible, languages }: RequestCardProps) {
   const allColumns = React.useMemo(() => {
     const set = new Set<string>();
     for (const row of req.campaigns ?? []) {
@@ -353,6 +356,18 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
 
     if (key === "sub_folder_type") {
       return <Box>{raw ? "Folder" : "—"}</Box>;
+    }
+
+    if (key === "language") {
+      const id = raw == null ? "" : String(raw);
+      if (!id) return <Box>—</Box>;
+      const found = languages?.find((l) => String(l.id) === id);
+      const text = found?.name || id;
+      return (
+        <Box sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {text}
+        </Box>
+      );
     }
 
     if (isUrl(raw)) {
