@@ -9,6 +9,7 @@ import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
 import { RequestItem } from "@/types/campaign";
 import { buildRequestTitle } from "@/lib/requestTitle";
+import { campaignStatusColor } from "@/lib/statusColor";
 
 type Props = {
   open: boolean;
@@ -166,10 +167,9 @@ export default function RequestDetailsOverlay({
                     : (c?.campaign_status ?? "—")
                 }
                 color={
-                  /error/i.test(String(c?.campaign_status ?? "")) ? "error" :
-                  /completed|created|done|success|ok|ready/i.test(String(c?.campaign_status ?? "")) ? "success" :
-                  /processing|running|sent|pending|progress|building/i.test(String(c?.campaign_status ?? "")) ? "warning" :
-                  "default"
+                  /error/i.test(String(c?.campaign_status ?? ""))
+                    ? "error"
+                    : campaignStatusColor(String(c?.campaign_status ?? ""))
                 }
               />
               <Tiny label="ID" value={c?.campaign_id ?? "—"} />

@@ -3,23 +3,29 @@ import * as React from "react";
 import {
   Box, Button, CircularProgress, IconButton, Stack, Typography, TablePagination,
   Dialog,
+  ButtonGroup,
+  Chip,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import SortIcon from "@mui/icons-material/Sort";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 
 import RequestCard from "@/components/RequestCard";
 import RequestDetailsOverlay from "@/components/RequestDetailsOverlay";
 import CampaignDetailsOverlay from "@/components/CampaignDetailsOverlay";
-
+import EmptyState from "@/components/EmptyState";
+import ColumnsMenu from "@/components/ColumnsMenu"
 import NewRequestDialog from "@/components/NewRequestDialog";
+import NewRequestForm from "@/components/NewRequestForm";
+import RequestsFilter, { defaultRequestsFilter, RequestsFilterValue } from "@/components/RequestsFilter";
+
 import { Campaign, RequestItem } from "@/types/campaign";
 import { usePageSearch } from "@/lib/PageSearchContext";
 import { buildRequestTitle } from "@/lib/requestTitle";
-import RequestsFilter, { defaultRequestsFilter, RequestsFilterValue } from "@/components/RequestsFilter";
-import EmptyState from "@/components/EmptyState";
-import ColumnsMenu from "@/components/ColumnsMenu"
 import { useSocket } from "@/providers/SocketProvider";
-import NewRequestForm from "@/components/NewRequestForm";
+import { getRequestBuildDate } from "@/lib/sortHelpers";
 import { usePathname } from "next/navigation";
 
 
@@ -42,6 +48,8 @@ async function fetchRequests(page = 1, limit = 20): Promise<FetchResult> {
 
   return { items, total };
 }
+
+type SortOption = "build_time_asc" | "build_time_desc";
 
 const asId = (v: string | number) => String(v);
 
@@ -98,6 +106,7 @@ export default function CampaignSetRequestsPage() {
   const [filters, setFilters] = React.useState<RequestsFilterValue>(defaultRequestsFilter);
   const [editOpen, setEditOpen] = React.useState(false);
   const [editOf, setEditOf] = React.useState<RequestItem | null>(null);
+  const [cardSort, setCardSort] = React.useState<SortOption>("build_time_desc");
 
   const mapRequestToFormDefaults = (r: RequestItem) => ({
     campaign_name_post_fix: r.campaign_name_post_fix ?? "",
@@ -397,6 +406,22 @@ export default function CampaignSetRequestsPage() {
     };
   }, [socket, onCampaignRequests, handleSocketUpdate]);
 
+  const sortedData = React.useMemo(() => {
+    const list = [...data];
+    list.sort((a, b) => {
+      const da = getRequestBuildDate(a);
+      const db = getRequestBuildDate(b);
+  
+      if (!da && !db) return 0;
+      if (!da) return cardSort === "build_time_asc" ? 1 : -1;
+      if (!db) return cardSort === "build_time_asc" ? -1 : 1;
+  
+      const diff = da.getTime() - db.getTime();
+      return cardSort === "build_time_asc" ? diff : -diff;
+    });
+    return list;
+  }, [data, cardSort]);
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
@@ -410,15 +435,52 @@ export default function CampaignSetRequestsPage() {
           </Button>
         </Stack>
       </Stack>
-      <ColumnsMenu
-        allColumns={allColumns}
-        visible={visibleCols}
-        defaultVisible={defaultVisible}
-        onChange={setVisibleCols}
-        storageKey="req:global:visibleCols"
-        sx={{ mb: 1.5 }}
-      />
+      <Stack direction="row" alignItems="center" justifyContent="space-between">
+        <ColumnsMenu
+          allColumns={allColumns}
+          visible={visibleCols}
+          defaultVisible={defaultVisible}
+          onChange={setVisibleCols}
+          storageKey="req:global:visibleCols"
+          sx={{ mb: 1.5 }}
+        />
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          sx={{ mb: 1 }}
+        >
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <SortIcon fontSize="small" />
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Sort cards by build time
+            </Typography>
+          </Stack>
 
+          <ButtonGroup size="small">
+            <Button
+              startIcon={<ArrowUpwardIcon />}
+              onClick={() => setCardSort("build_time_asc")}
+            >
+              Oldest
+            </Button>
+            <Button
+              startIcon={<ArrowDownwardIcon />}
+              onClick={() => setCardSort("build_time_desc")}
+            >
+              Newest
+            </Button>
+          </ButtonGroup>
+
+          <Chip
+            size="small"
+            label={cardSort === "build_time_asc" ? "Active: Oldest first" : "Active: Newest first"}
+            color="primary"
+            variant="outlined"
+            sx={{ ml: 1 }}
+          />
+        </Stack>
+      </Stack>
       <RequestsFilter
         value={filters}
         onChange={setFilters}
@@ -437,7 +499,7 @@ export default function CampaignSetRequestsPage() {
         ) : (
         <>
           <Stack spacing={2}>
-            {data.map((req) => (
+            {sortedData.map((req) => (
               <RequestCard
                 key={req.id}
                 req={req}
@@ -489,9 +551,26 @@ export default function CampaignSetRequestsPage() {
               editOf={editOf.id}
               defaultValues={mapRequestToFormDefaults(editOf)}
               submitLabel="Save changes"
-              onSubmitted={() => {
+              onSubmitted={(res) => {
                 setEditOpen(false);
                 setEditOf(null);
+
+                if (!res?.data) return;
+
+                const updated: any = res.data;
+                setItems((prev) =>
+                  prev.map((req) =>
+                    String(req.id) === String(updated.id)
+                      ? { ...req, ...updated }
+                      : req
+                  )
+                );
+
+                setReqForOverlay((prev) =>
+                  prev && String(prev.id) === String(updated.id)
+                    ? { ...prev, ...updated }
+                    : prev
+                );
               }}
             />
           )}

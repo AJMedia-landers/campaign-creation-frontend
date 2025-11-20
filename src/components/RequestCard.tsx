@@ -20,7 +20,14 @@ import {
   Checkbox,
   ListItemIcon,
   ListItemText,
+  Collapse,
 } from "@mui/material";
+import ArrowDropUpIcon from "@mui/icons-material/ArrowDropUp";
+import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import FlagIcon from "@mui/icons-material/Flag";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
@@ -29,6 +36,8 @@ import HideSourceIcon from "@mui/icons-material/HideSource";
 import RestoreIcon from "@mui/icons-material/Restore";
 import { RequestItem } from "@/types/campaign";
 import { buildRequestTitle } from "@/lib/requestTitle";
+import { toDate, toNumber } from "@/lib/sortHelpers";
+import { campaignStatusColor } from "@/lib/statusColor";
 
 const isUrl = (v: unknown) => typeof v === "string" && /^https?:\/\//i.test(v);
 
@@ -88,6 +97,14 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
   );
 
   const [visibleCols, setVisibleCols] = React.useState<string[]>(defaultVisible);
+  const [rowSort, setRowSort] = React.useState<{
+    column: string | null;
+    dir: "asc" | "desc";
+  }>({
+    column: null,
+    dir: "asc",
+  });
+  const [expanded, setExpanded] = React.useState(true);
 
   // load / persist
   React.useEffect(() => {
@@ -119,13 +136,15 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
   const showAll = () => externalVisible ? undefined : setVisibleCols(allColumns);
   const hideAll = () => externalVisible ? undefined : setVisibleCols([]);
   const resetCols = () => externalVisible ? undefined : setVisibleCols(defaultVisible);
+  const [, setTick] = React.useState(0);
+  const forceUpdate = () => setTick((x) => x + 1);
 
   /** Column widths */
   const [colW, setColW] = React.useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
     for (const key of allColumns) {
       if (key === "creative_sub_folder" || key === "creatives_folder") {
-        initial[key] = 96; // icon-only
+        initial[key] = 130; // icon-only
       } else if (key === "sub_folder_type") {
         initial[key] = 120; // short word
       } else if (key === "tracking_link") {
@@ -182,15 +201,6 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
     document.addEventListener("mouseup", endDrag);
   };
 
-  /** Status */
-  const statusColor = (raw: string | undefined) => {
-    const s = (raw || "").toLowerCase();
-    if (/error|failed|fail/.test(s)) return "error";
-    if (/completed|created|done|success|ok|ready/.test(s)) return "success";
-    if (/processing|running|sent|pending|in\s*progress|building/.test(s)) return "warning";
-    return "default";
-  };
-
   const renderCell = (key: string, row: any) => {
     const raw = row?.[key];
 
@@ -200,7 +210,7 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
       const label = isError
       ? row?.error_message || "Error"
       : (s || "—");
-      const color = isError ? "error" : statusColor(s);
+      const color = isError ? "error" : campaignStatusColor(s);
       return (
         <Chip
           size="small"
@@ -219,11 +229,86 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
       );
     }
 
+    if (key === "campaign_id") {
+      const text = raw == null || raw === "" ? "—" : String(raw);
+      if (text === "—") return <Box>—</Box>;
+
+      return (
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 0.5,
+          }}
+        >
+          <Box
+            sx={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {text}
+          </Box>
+          <Tooltip title="Copy Campaign ID">
+            <IconButton
+              size="small"
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  await navigator.clipboard.writeText(text);
+                } catch (err) {
+                  console.error("Clipboard copy failed", err);
+                }
+              }}
+            >
+              <ContentCopyIcon fontSize="inherit" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      );
+    }
+
     if (key === "tracking_link") {
       const text = raw == null || raw === "" ? "—" : String(raw);
+      if (text === "—") {
+        return <Box>—</Box>;
+      }
+
       return (
-        <Box sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {text}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 0.5,
+          }}
+        >
+          <Box
+            sx={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {text}
+          </Box>
+          <Tooltip title="Copy Tracking Link">
+            <IconButton
+              size="small"
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  await navigator.clipboard.writeText(text);
+                } catch (err) {
+                  console.error("Clipboard copy failed", err);
+                }
+              }}
+            >
+              <ContentCopyIcon fontSize="inherit" />
+            </IconButton>
+          </Tooltip>
         </Box>
       );
     }
@@ -299,6 +384,46 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
 
   const showLocalMenu = !externalVisible;
 
+  const sortedRows = React.useMemo(() => {
+    const rows = req.campaigns ?? [];
+
+    if (!rowSort.column) return rows;
+
+    const copy = [...rows];
+
+    copy.sort((a, b) => {
+      const key = rowSort.column!;
+      const av = a?.[key];
+      const bv = b?.[key];
+
+      if (av == null && bv == null) return 0;
+      if (av == null) return rowSort.dir === "asc" ? 1 : -1;
+      if (bv == null) return rowSort.dir === "asc" ? -1 : 1;
+
+      const da = toDate(av);
+      const db = toDate(bv);
+      if (da && db) {
+        const diff = da.getTime() - db.getTime();
+        return rowSort.dir === "asc" ? diff : -diff;
+      }
+
+      const na = toNumber(av);
+      const nb = toNumber(bv);
+      if (na != null && nb != null) {
+        const diff = na - nb;
+        return rowSort.dir === "asc" ? diff : -diff;
+      }
+
+      const sa = String(av).toLowerCase();
+      const sb = String(bv).toLowerCase();
+      if (sa < sb) return rowSort.dir === "asc" ? -1 : 1;
+      if (sa > sb) return rowSort.dir === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return copy;
+  }, [req.campaigns, rowSort]);
+
   return (
     <Card variant="outlined" sx={{ overflow: "hidden", maxWidth: "100%" }}>
       <CardHeader
@@ -313,13 +438,7 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
               <Chip
                 size="small"
                 label={req.status}
-                color={
-                  /completed|created|done/i.test(req.status)
-                    ? "success"
-                    : /processing|running|sent/i.test(req.status)
-                    ? "warning"
-                    : "default"
-                }
+                color={campaignStatusColor(req.status) as "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning"}
                 variant="outlined"
               />
             )}
@@ -334,153 +453,242 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
           </Stack>
         }
         action={
-          showLocalMenu ? (
-            <>
-              <Tooltip title="Columns">
-                <IconButton size="small" onClick={openMenu} onMouseDown={(e) => e.stopPropagation()}>
-                  <ViewColumnIcon />
-                </IconButton>
-              </Tooltip>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            {/* Toggle flag */}
+            <Tooltip title={req.review_flag ? "Flagged for review" : "Mark for review"}>
+              <IconButton
+                size="small"
+                onClick={async (e) => {
+                  e.stopPropagation();
 
-              <Menu
-                anchorEl={menuEl}
-                open={Boolean(menuEl)}
-                onClose={closeMenu}
-                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-                transformOrigin={{ vertical: "top", horizontal: "right" }}
-                slotProps={{ paper: { sx: { minWidth: 260, maxHeight: 360 } } }}
-                onClick={(e) => e.stopPropagation()}
+                  const next = !req.review_flag;
+                  console.log("Toggling review flag to", next);
+
+                  try {
+                    await fetch(`/api/campaigns/requests?id=${req.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ review_flag: next }),
+                    });
+
+                    req.review_flag = next;
+                    forceUpdate();
+                  } catch (err) {
+                    console.error("Failed to toggle review flag:", err);
+                  }
+                }}
               >
-                <Box
+                <FlagIcon
                   sx={{
-                    position: "sticky",
-                    top: 0,
-                    zIndex: 1,
-                    bgcolor: "background.paper",
-                    borderBottom: 1,
-                    borderColor: "divider",
+                    fontSize: 20,
+                    color: req.review_flag ? "red" : "black",
                   }}
-                >
-                  <MenuItem onClick={showAll} dense>
-                    <ListItemIcon><DoneAllIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Show all" />
-                  </MenuItem>
-                  <MenuItem onClick={hideAll} dense>
-                    <ListItemIcon><HideSourceIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Hide all" />
-                  </MenuItem>
-                  <MenuItem onClick={resetCols} dense>
-                    <ListItemIcon><RestoreIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Reset to defaults" />
-                  </MenuItem>
-                </Box>
+                />
+              </IconButton>
+            </Tooltip>
+            {/* Expand / collapse button */}
+            <Tooltip title={expanded ? "Collapse campaigns" : "Expand campaigns"}>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpanded((prev) => !prev);
+                }}
+              >
+                {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              </IconButton>
+            </Tooltip>
 
-                {allColumns.map((k) => (
-                  <MenuItem key={k} onClick={() => toggleCol(k)} dense>
-                    <Checkbox edge="start" checked={isVisible(k)} />
-                    <ListItemText primary={k} />
-                  </MenuItem>
-                ))}
-              </Menu>
-            </>
-          ) : null
+            {/* Columns menu */}
+            {showLocalMenu && (
+              <>
+                <Tooltip title="Columns">
+                  <IconButton
+                    size="small"
+                    onClick={openMenu}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
+                    <ViewColumnIcon />
+                  </IconButton>
+                </Tooltip>
+
+                <Menu
+                  anchorEl={menuEl}
+                  open={Boolean(menuEl)}
+                  onClose={closeMenu}
+                  anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                  transformOrigin={{ vertical: "top", horizontal: "right" }}
+                  slotProps={{ paper: { sx: { minWidth: 260, maxHeight: 360 } } }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Box
+                    sx={{
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 1,
+                      bgcolor: "background.paper",
+                      borderBottom: 1,
+                      borderColor: "divider",
+                    }}
+                  >
+                    <MenuItem onClick={showAll} dense>
+                      <ListItemIcon><DoneAllIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Show all" />
+                    </MenuItem>
+                    <MenuItem onClick={hideAll} dense>
+                      <ListItemIcon><HideSourceIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Hide all" />
+                    </MenuItem>
+                    <MenuItem onClick={resetCols} dense>
+                      <ListItemIcon><RestoreIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Reset to defaults" />
+                    </MenuItem>
+                  </Box>
+
+                  {allColumns.map((k) => (
+                    <MenuItem key={k} onClick={() => toggleCol(k)} dense>
+                      <Checkbox edge="start" checked={isVisible(k)} />
+                      <ListItemText primary={k} />
+                    </MenuItem>
+                  ))}
+                </Menu>
+              </>
+            )}
+          </Box>
         }
       />
-      <CardContent
-        sx={{
-          pt: 0,
-          maxHeight: 360,
-          overflowY: "auto",
-          borderTop: "1px solid",
-          borderColor: "divider",
-        }}
-      >
-        <Table
-          size="small"
+      <Collapse in={expanded} timeout="auto" unmountOnExit>
+        <CardContent
           sx={{
-            tableLayout: "fixed",
-            "& th, & td": {
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              verticalAlign: "middle",
-            },
+            pt: 0,
+            maxHeight: 360,
+            overflowY: "auto",
+            borderTop: "1px solid",
+            borderColor: "divider",
           }}
         >
-          <TableHead sx={{ bgcolor: "action.hover" }}>
-            <TableRow>
-              {columns.map((key) => (
-                <TableCell
-                  key={key}
-                  sx={{
-                    position: "relative",
-                    width: colW[key],
-                    maxWidth: colW[key],
-                    minWidth: 60,
-                    pr: 3,
-                  }}
-                  title={key}
-                >
-                  {key}
-                  {/* drag handle */}
-                  <Box
-                    onMouseDown={(e) => startDrag(key, e)}
-                    sx={{
-                      position: "absolute",
-                      right: 0,
-                      top: 0,
-                      width: 8,
-                      height: "100%",
-                      cursor: "col-resize",
-                      userSelect: "none",
-                      "&::after": {
-                        content: '""',
-                        position: "absolute",
-                        left: 3,
-                        top: 8,
-                        bottom: 8,
-                        width: "2px",
-                        bgcolor: "divider",
-                      },
-                    }}
-                  />
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-
-          <TableBody>
-            {(req.campaigns?.length ?? 0) === 0 ? (
+          <Table
+            size="small"
+            sx={{
+              tableLayout: "fixed",
+              "& th, & td": {
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                verticalAlign: "middle",
+              },
+            }}
+          >
+            <TableHead sx={{ bgcolor: "action.hover" }}>
               <TableRow>
-                <TableCell colSpan={columns.length} sx={{ color: "text.secondary" }}>
-                  No campaigns
-                </TableCell>
-              </TableRow>
-            ) : (
-              (req.campaigns ?? []).map((row) => (
-                <TableRow
-                  key={row.id ?? JSON.stringify(row)}
-                  hover
-                  sx={{ cursor: "pointer" }}
-                  onClick={() => onOpenCampaign(row)}
-                >
-                  {columns.map((key) => (
+                {columns.map((key) => {
+                  const isSortable =
+                  key !== "creative_sub_folder" &&
+                  key !== "creatives_folder" &&
+                  key !== "sub_folder_type" &&
+                  key !== "tracking_link";
+
+                  const isActive = rowSort.column === key;
+                  const dir = rowSort.dir;
+
+                  const handleClickHeader = () => {
+                    if (!isSortable) return;
+                    setRowSort((prev) =>
+                      prev.column === key
+                        ? { column: key, dir: prev.dir === "asc" ? "desc" : "asc" }
+                        : { column: key, dir: "asc" }
+                    );
+                  };
+                  return (
                     <TableCell
                       key={key}
-                      sx={{ width: colW[key], maxWidth: colW[key] }}
-                      title={
-                        typeof row?.[key] === "string" ? (row?.[key] as string) : undefined
-                      }
+                      sx={{
+                        position: "relative",
+                        width: colW[key],
+                        maxWidth: colW[key],
+                        minWidth: 60,
+                        pr: 3,
+                        cursor: isSortable ? "pointer" : "default",
+                        ...(isSortable && {
+                          "&:hover": {
+                            bgcolor: "action.selected",
+                          },
+                        }),
+                      }}
+                      title={key}
+                      onClick={handleClickHeader}
                     >
-                      {renderCell(key, row)}
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <span>{key}</span>
+                        {isActive && (
+                          dir === "asc" ? (
+                            <ArrowDropUpIcon fontSize="small" />
+                          ) : (
+                            <ArrowDropDownIcon fontSize="small" />
+                          )
+                        )}
+                      </Box>
+                      {/* drag handle */}
+                      <Box
+                        onMouseDown={(e) => startDrag(key, e)}
+                        sx={{
+                          position: "absolute",
+                          right: 0,
+                          top: 0,
+                          width: 8,
+                          height: "100%",
+                          cursor: "col-resize",
+                          userSelect: "none",
+                          "&::after": {
+                            content: '""',
+                            position: "absolute",
+                            left: 3,
+                            top: 8,
+                            bottom: 8,
+                            width: "2px",
+                            bgcolor: "divider",
+                          },
+                        }}
+                      />
                     </TableCell>
-                  ))}
+                  )
+                })}
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              {(req.campaigns?.length ?? 0) === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={columns.length} sx={{ color: "text.secondary" }}>
+                    No campaigns
+                  </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
+              ) : (
+                sortedRows.map((row) => (
+                  <TableRow
+                    key={row.id ?? JSON.stringify(row)}
+                    hover
+                    sx={{ cursor: "pointer" }}
+                    onClick={() => onOpenCampaign(row)}
+                  >
+                    {columns.map((key) => (
+                      <TableCell
+                        key={key}
+                        sx={{ width: colW[key], maxWidth: colW[key] }}
+                        title={
+                          typeof row?.[key] === "string" ? (row?.[key] as string) : undefined
+                        }
+                      >
+                        {renderCell(key, row)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Collapse>
     </Card>
   );
 }
