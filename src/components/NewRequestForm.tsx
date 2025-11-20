@@ -65,6 +65,7 @@ type ClientName = { id?: string; name: string } | string;
 type ObAccount = { id: string; name: string, marketer_id: string };
 type RawTzRow = { country: string; timezone: string };
 type FolderItem = { id: string; name: string };
+type LanguageOption = { id: string; name: string };
 
 export type NewRequestFormProps = {
   defaultValues?: Partial<CampaignRequestInput & UIExtras>;
@@ -94,6 +95,7 @@ export default function NewRequestForm({
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [folderError, setFolderError] = useState<string | null>(null);
   const [driveUrlInput, setDriveUrlInput] = useState("");
+  const [showMoreHeadlines, setShowMoreHeadlines] = useState(false);
 
   // ---- form state
   const [form, setForm] = useState<CampaignRequestInput>({
@@ -113,6 +115,9 @@ export default function NewRequestForm({
     cta_button: "Learn more",
     creative_description: "",
     headline1: "",
+    language: "",
+    pacing: "off",
+    bid_amount: 0,
     ...(defaultValues || {}),
   });
 
@@ -326,7 +331,45 @@ export default function NewRequestForm({
         onChange("country", countries[0]);
       }
     }
-  }, [form.timezone, tzToCountries]); // eslint-disable-line
+  }, [form.timezone, tzToCountries]);
+
+  // RevContent languages
+  const [languages, setLanguages] = useState<LanguageOption[]>([]);
+  const [langLoading, setLangLoading] = useState(false);
+  const [langError, setLangError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let canceled = false;
+
+    (async () => {
+      try {
+        setLangLoading(true);
+        setLangError(null);
+        const res = await fetch("/api/campaigns/revcontent/languages");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        const list = Array.isArray(payload?.data) ? payload.data : payload;
+        if (!canceled) {
+          setLanguages((list || []) as LanguageOption[]);
+
+          if (!form.language) {
+            const defaultLang = list?.find((l: LanguageOption) =>
+              l.name.toLowerCase().includes("english")
+            );
+            if (defaultLang) onChange("language", defaultLang.id);
+          }
+        }
+      } catch {
+        if (!canceled) setLangError("Failed to load languages");
+      } finally {
+        if (!canceled) setLangLoading(false);
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
   const handlePlatforms = (_: any, vals: string[] | null) => {
     if (Array.isArray(vals)) onChange("ad_platform", vals);
@@ -458,6 +501,15 @@ export default function NewRequestForm({
     if (!form.timezone) e.timezone = "Required";
     if (!form.device?.length) e.device = "Select at least one device";
     if (!form.headline1?.trim()) e.headline1 = "Required";
+
+    if (form.ad_platform.includes("RevContent")) {
+      if (!form.language) e.language = "Required";
+      if (!form.pacing) e.pacing = "Required";
+      if (form.bid_amount == null || Number(form.bid_amount) <= 0) {
+        e.bid_amount = "Required";
+      }
+    }
+
     return e;
   };
 
@@ -468,14 +520,21 @@ export default function NewRequestForm({
       timezone: form.timezone,
       campaign_date: date ? date.format("YYYY-MM-DD") : undefined,
     };
-    
+
     if (form.folder_ids && form.folder_ids.length > 0) {
       payload.folder_ids = form.folder_ids;
     } else {
       delete payload.folder_ids;
     }
-    
+
     if (!form.ad_platform.includes("Outbrain")) delete payload.ad_account_id;
+
+    if (!form.ad_platform.includes("RevContent")) {
+      delete payload.language;
+      delete payload.pacing;
+      delete payload.bid_amount;
+    }
+
     return payload as CampaignRequestInput;
   };
 
@@ -506,6 +565,7 @@ export default function NewRequestForm({
     setSubmitting(true);
     try {
       const payload = buildPayload();
+      console.log("Submitting payload:", payload);
       const url = editOf
         ? `/api/campaigns/requests?id=${editOf}`
         : `/api/campaigns/create`;
@@ -531,11 +591,11 @@ export default function NewRequestForm({
       setToastSeverity("success");
       setToastOpen(true);
       onSubmitted?.(json);
-      if (!editOf) {
-        setTimeout(() => {
-          router.replace("/");
-        }, 3000);
-      }
+      // if (!editOf) {
+      //   setTimeout(() => {
+      //     router.replace("/");
+      //   }, 3000);
+      // }
     } catch (err: any) {
       setResult({ ok: false, msg: err.message || "Request failed" });
     } finally {
@@ -546,7 +606,7 @@ export default function NewRequestForm({
 
   return (
     <>
-    <Box sx={{ maxWidth: 900, mx: "auto", p: { xs: 2, md: 3 } }}>
+    <Box sx={{ maxWidth: 1200, mx: "auto", p: { xs: 2, md: 3 } }}>
       {title && (
         <Typography component="div" variant="h4" sx={{ mb: 2 }}>
           {title}
@@ -584,58 +644,82 @@ export default function NewRequestForm({
             helperText={errors.campaign_nickname}
             fullWidth
           /> */}
-
-          {/* ClientName */}
-          <Autocomplete
-            options={clientNames}
-            getOptionLabel={(opt) => opt}
-            value={form.client_name || null}
-            onChange={(_, val) => onChange("client_name", val || "")}
-            loading={clientLoading}
-            loadingText="Loading client names…"
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="ClientName"
-                required
-                error={!!errors.client_name}
-                helperText={errors.client_name || clientErr || ""}
-                fullWidth
-              />
-            )}
-          />
-
-          <TextField
-            label="CampaignNamePostFix"
-            value={form.campaign_name_post_fix}
-            onChange={(e) => onChange("campaign_name_post_fix", e.target.value)}
-            onBlur={() =>
-              setErrors((p) => ({
-                ...p,
-                campaign_name_post_fix: form.campaign_name_post_fix?.trim() ? "" : "Required",
-              }))
-            }
-            error={!!errors.campaign_name_post_fix}
-            helperText={errors.campaign_name_post_fix}
-            required
-            fullWidth
-          />
-
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <DatePicker
-              label="CampaignDate"
-              value={date}
-              onChange={setDate}
-              format="YYYY-MM-DD"
-              slotProps={{
-                textField: {
-                  fullWidth: true,
-                  required: true,
-                  inputProps: { placeholder: "YYYY-MM-DD" },
-                },
-              }}
+          <Box
+            sx={{
+              display: "grid",
+              gap: 2,
+              gridTemplateColumns: { xs: "1fr", md: "0.7fr 1.3fr" },
+            }}
+          >
+            {/* ClientName */}
+            <Autocomplete
+              options={clientNames}
+              getOptionLabel={(opt) => opt}
+              value={form.client_name || null}
+              onChange={(_, val) => onChange("client_name", val || "")}
+              loading={clientLoading}
+              loadingText="Loading client names…"
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="ClientName"
+                  required
+                  error={!!errors.client_name}
+                  helperText={errors.client_name || clientErr || ""}
+                  fullWidth
+                />
+              )}
             />
-          </LocalizationProvider>
+
+            <TextField
+              label="CampaignNamePostFix"
+              value={form.campaign_name_post_fix}
+              onChange={(e) => onChange("campaign_name_post_fix", e.target.value)}
+              onBlur={() =>
+                setErrors((p) => ({
+                  ...p,
+                  campaign_name_post_fix: form.campaign_name_post_fix?.trim() ? "" : "Required",
+                }))
+              }
+              error={!!errors.campaign_name_post_fix}
+              helperText={errors.campaign_name_post_fix}
+              required
+              fullWidth
+            />
+          </Box>
+
+          <Box
+            sx={{
+              display: "grid",
+              gap: 2,
+              gridTemplateColumns: { xs: "1fr", md: "0.7fr 1.3fr" },
+            }}
+          >
+            {/* CampaignDate */}
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <DatePicker
+                label="CampaignDate"
+                value={date}
+                onChange={setDate}
+                format="YYYY-MM-DD"
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    required: true,
+                    inputProps: { placeholder: "YYYY-MM-DD" },
+                  },
+                }}
+              />
+            </LocalizationProvider>
+            {/* Brand Name */}
+            <TextField
+              label="BrandName"
+              value={form.brand_name || ""}
+              onChange={(e) => onChange("brand_name", e.target.value)}
+              required
+              fullWidth
+            />
+          </Box>
 
           {/* CreativesFolder with Browse Button */}
           <TextField
@@ -677,66 +761,55 @@ export default function NewRequestForm({
               ),
             }}
           />
-
-          {/* AdPlatform */}
-          <Box>
-            <Typography component="div" sx={{ mb: 1 }}>AdPlatform *</Typography>
-            <ToggleButtonGroup
-              value={form.ad_platform}
-              exclusive={false}
-              onChange={handlePlatforms}
-              color="primary"
-              aria-label="ad-platforms"
-            >
-              {PLATFORMS.map((p) => (
-                <ToggleButton key={p.id} value={p.id} aria-pressed={form.ad_platform.includes(p.id)}>
-                  {p.label}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-            {!!errors.ad_platform && (
-              <Typography component="div" variant="caption" color="error">
-                {errors.ad_platform}
-              </Typography>
-            )}
+          <Box
+            sx={{
+              display: "grid",
+              gap: 2,
+              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            }}
+          >
+             {/* AdPlatform */}
+              <Box>
+                <Typography component="div" sx={{ mb: 1 }}>AdPlatform *</Typography>
+                <ToggleButtonGroup
+                  value={form.ad_platform}
+                  exclusive={false}
+                  onChange={handlePlatforms}
+                  color="primary"
+                  aria-label="ad-platforms"
+                >
+                  {PLATFORMS.map((p) => (
+                    <ToggleButton key={p.id} value={p.id} aria-pressed={form.ad_platform.includes(p.id)}>
+                      {p.label}
+                    </ToggleButton>
+                  ))}
+                </ToggleButtonGroup>
+                {!!errors.ad_platform && (
+                  <Typography component="div" variant="caption" color="error">
+                    {errors.ad_platform}
+                  </Typography>
+                )}
+              </Box>
+              {/* Devices */}
+              <Box>
+                <Typography component="div" sx={{ mb: 1 }}>Device *</Typography>
+                <ToggleButtonGroup value={form.device} exclusive={false} onChange={handleDevices} aria-label="devices">
+                  {DEVICES.map((d) => (
+                    <ToggleButton key={d.id} value={d.id} aria-pressed={form.device.includes(d.id)}>
+                      {d.label}
+                    </ToggleButton>
+                  ))}
+                </ToggleButtonGroup>
+                {!!errors.device && (
+                  <Typography component="div" variant="caption" color="error">
+                    {errors.device}
+                  </Typography>
+                )}
+              </Box>
           </Box>
 
-          {/* Outbrain account */}
-          <Autocomplete
-            options={obAccounts}
-            getOptionLabel={(opt) => opt.name}
-            value={obAccounts.find((a) => a.marketer_id === form.ad_account_id) || null}
-            onChange={(_, val) => onChange("ad_account_id", val?.marketer_id ?? "")}
-            isOptionEqualToValue={(o, v) => o.marketer_id === v.marketer_id}
-            disabled={!form.ad_platform.includes("Outbrain")}
-            loading={accLoading}
-            loadingText="Loading accounts…"
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="AdAccountId (Outbrain Only)"
-                placeholder="Search"
-                error={!!errors.ad_account_id}
-                helperText={
-                  form.ad_platform.includes("Outbrain")
-                    ? errors.ad_account_id || accError || ""
-                    : "Enable by selecting Outbrain"
-                }
-                fullWidth
-              />
-            )}
-          />
-
-          <TextField
-            label="BrandName"
-            value={form.brand_name || ""}
-            onChange={(e) => onChange("brand_name", e.target.value)}
-            required
-            fullWidth
-          />
-
           {/* Hours */}
-          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
+          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } }}>
             <TextField
               sx={{
                 "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
@@ -829,23 +902,7 @@ export default function NewRequestForm({
             />
           </Box>
 
-          {/* Devices */}
-          <Box>
-            <Typography component="div" sx={{ mb: 1 }}>Device *</Typography>
-            <ToggleButtonGroup value={form.device} exclusive={false} onChange={handleDevices} aria-label="devices">
-              {DEVICES.map((d) => (
-                <ToggleButton key={d.id} value={d.id} aria-pressed={form.device.includes(d.id)}>
-                  {d.label}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-            {!!errors.device && (
-              <Typography component="div" variant="caption" color="error">
-                {errors.device}
-              </Typography>
-            )}
-          </Box>
-
+          {/* DailyBudget */}
           <TextField
             sx={{
               "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
@@ -872,31 +929,143 @@ export default function NewRequestForm({
             }}
             fullWidth
           />
-
-          <TextField
-            select
-            label="CTAButton"
-            value={form.cta_button || "Learn more"}
-            onChange={(e) => onChange("cta_button", e.target.value)}
-            required
-            fullWidth
+          <Box
+            sx={{
+              display: "grid",
+              gap: 2,
+              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            }}
           >
-            {CTA_OPTIONS.map((opt) => (
-              <MenuItem key={opt} value={opt}>
-                {opt}
-              </MenuItem>
-            ))}
-          </TextField>
+            {/* CTAButton */}
+            <TextField
+              select
+              label="CTAButton"
+              value={form.cta_button || "Learn more"}
+              onChange={(e) => onChange("cta_button", e.target.value)}
+              required
+              fullWidth
+            >
+              {CTA_OPTIONS.map((opt) => (
+                <MenuItem key={opt} value={opt}>
+                  {opt}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            label="CreativeDescription"
-            value={form.creative_description || ""}
-            onChange={(e) => onChange("creative_description", e.target.value)}
-            required
-            multiline
-            minRows={2}
-            fullWidth
-          />
+            {/* Description */}
+            <TextField
+              label="CreativeDescription"
+              value={form.creative_description || ""}
+              onChange={(e) => onChange("creative_description", e.target.value)}
+              required
+              multiline
+              minRows={1}
+              fullWidth
+            />
+          </Box>
+
+          {/* Outbrain account */}
+          {form.ad_platform.includes("Outbrain") && (
+            <Autocomplete
+              options={obAccounts}
+              getOptionLabel={(opt) => opt.name}
+              value={obAccounts.find((a) => a.marketer_id === form.ad_account_id) || null}
+              onChange={(_, val) => onChange("ad_account_id", val?.marketer_id ?? "")}
+              isOptionEqualToValue={(o, v) => o.marketer_id === v.marketer_id}
+              disabled={!form.ad_platform.includes("Outbrain")}
+              loading={accLoading}
+              loadingText="Loading accounts…"
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="AdAccountId (Outbrain Only)"
+                  placeholder="Search"
+                  error={!!errors.ad_account_id}
+                  helperText={
+                    form.ad_platform.includes("Outbrain")
+                      ? errors.ad_account_id || accError || ""
+                      : "Enable by selecting Outbrain"
+                  }
+                  fullWidth
+                />
+              )}
+            />
+          )}
+
+          {form.ad_platform.includes("RevContent") && (
+            <Box
+              sx={{
+                display: "grid",
+                gap: 2,
+                alignItems: "flex-end",
+                gridTemplateColumns: { xs: "1fr", md: "0.25fr 0.75fr 1.0fr" },
+              }}
+            >
+
+              {/* Pacing toggle */}
+              <Box>
+                <Typography component="div" sx={{ mb: 1 }}>
+                  Pacing
+                </Typography>
+                <ToggleButtonGroup
+                  exclusive
+                  value={form.pacing || "off"}
+                  onChange={(_, val) => val && onChange("pacing", val)}
+                  aria-label="pacing"
+                >
+                  <ToggleButton value="off">Off</ToggleButton>
+                  <ToggleButton value="on">On</ToggleButton>
+                </ToggleButtonGroup>
+                {!!errors.pacing && (
+                  <Typography component="div" variant="caption" color="error">
+                    {errors.pacing}
+                  </Typography>
+                )}
+              </Box>
+
+              {/* Bid amount */}
+              <TextField
+                sx={{
+                  "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
+                    { WebkitAppearance: "none", margin: 0 },
+                  "& input[type=number]": { MozAppearance: "textfield" },
+                }}
+                label="BidAmount (RevContent)"
+                type="number"
+                value={form.bid_amount ?? 0}
+                onChange={(e) => onChange("bid_amount", Number(e.target.value))}
+                required
+                error={!!errors.bid_amount}
+                helperText={errors.bid_amount}
+                InputProps={{
+                  inputProps: { min: 0, step: 0.01 },
+                }}
+                fullWidth
+              />
+
+              {/* Language selector */}
+              <Autocomplete
+                options={languages}
+                getOptionLabel={(opt) => opt.name}
+                value={
+                  languages.find((l) => l.id === (form.language as string)) || null
+                }
+                onChange={(_, val) => onChange("language", val?.id ?? "")}
+                loading={langLoading}
+                loadingText="Loading languages…"
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Language (RevContent)"
+                    placeholder="Search"
+                    required
+                    error={!!errors.language}
+                    helperText={errors.language || langError || ""}
+                  />
+                )}
+              />
+            </Box>
+          )}
 
           <TextField
             label="Headline1"
@@ -914,16 +1083,28 @@ export default function NewRequestForm({
             required
             fullWidth
           />
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => setShowMoreHeadlines((v) => !v)}
+            sx={{ alignSelf: "flex-start", mb: showMoreHeadlines ? 0 : 1 }}
+          >
+            {showMoreHeadlines ? "Hide extra headlines" : "Add more headlines"}
+          </Button>
 
-          {Array.from({ length: 9 }, (_, i) => i + 2).map((n) => (
-            <TextField
-              key={n}
-              label={`Headline${n}`}
-              value={(form as any)[`headline${n}`] || ""}
-              onChange={(e) => onChange(`headline${n}` as any, e.target.value)}
-              fullWidth
-            />
-          ))}
+          {showMoreHeadlines && (
+            <>
+              {Array.from({ length: 9 }, (_, i) => i + 2).map((n) => (
+                <TextField
+                  key={n}
+                  label={`Headline${n}`}
+                  value={(form as any)[`headline${n}`] || ""}
+                  onChange={(e) => onChange(`headline${n}` as any, e.target.value)}
+                  fullWidth
+                />
+              ))}
+            </>
+          )}
 
           <Button type="submit" variant="contained" disabled={submitting}>
             {submitting ? (editOf ? "Saving…" : "Submitting…") : effectiveSubmitLabel}

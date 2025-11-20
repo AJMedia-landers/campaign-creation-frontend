@@ -18,6 +18,9 @@ export interface CampaignRequestInput {
   headline1?: string; headline2?: string; headline3?: string; headline4?: string; headline5?: string;
   headline6?: string; headline7?: string; headline8?: string; headline9?: string; headline10?: string;
   review_flag?: boolean;
+  language?: string;
+  pacing?: string,
+  bid_amount?: number,
 }
 
 /** UI-only */
