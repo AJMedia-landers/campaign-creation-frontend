@@ -15,7 +15,7 @@ type Props = {
 
 export default function NewRequestDialog({ open, onClose, onCreated, title = "campaignRequests Form" }: Props) {
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <DialogTitle sx={{ pr: 6 }}>
         {title}
         <IconButton

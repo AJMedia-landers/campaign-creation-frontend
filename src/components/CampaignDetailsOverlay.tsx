@@ -7,6 +7,9 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
+import { campaignStatusColor } from "@/lib/statusColor";
+
+type LanguageOption = { id: string | number; name: string };
 
 type Props = {
   open: boolean;
@@ -14,10 +17,11 @@ type Props = {
   data: any;
   onEdit?: (c: any) => void;
   onDelete?: (c: any) => void;
+  languages?: LanguageOption[];
 };
 
 export default function CampaignDetailsOverlay({
-  open, onClose, data, onEdit, onDelete,
+  open, onClose, data, onEdit, onDelete, languages
 }: Props) {
   const [expanded, setExpanded] = React.useState(false);
   React.useEffect(() => { if (!open) setExpanded(false); }, [open]);
@@ -25,16 +29,22 @@ export default function CampaignDetailsOverlay({
   const c = data || {};
   const status = String(c?.campaign_status ?? "");
   const isErr = /error/i.test(status);
-  const color =
-    isErr ? "error" :
-    /completed|created|done|success|ok|ready/i.test(status) ? "success" :
-    /processing|running|sent|pending|progress|building/i.test(status) ? "warning" :
-    "default";
+  const color = isErr ? "error" : campaignStatusColor(status);
 
   const HIDDEN_FIELDS = React.useMemo(() => new Set(["id", "request_id"]), []);
   const visibleEntries = React.useMemo(
     () => Object.entries(c as Record<string, unknown>).filter(([k]) => !HIDDEN_FIELDS.has(k)),
     [c, HIDDEN_FIELDS]
+  );
+
+  const getLanguageName = React.useCallback(
+    (value: unknown) => {
+      const id = value == null ? "" : String(value);
+      if (!id) return "—";
+      const found = languages?.find((l) => String(l.id) === id);
+      return found?.name || id;
+    },
+    [languages]
   );
 
   const HeaderBar = (
@@ -65,26 +75,30 @@ export default function CampaignDetailsOverlay({
       </Stack>
 
       <Stack spacing={1.25}>
-        {visibleEntries.map(([k, v]) => (
-          <Stack
-            key={k}
-            direction="row"
-            justifyContent="space-between"
-            alignItems="center"
-            sx={{ p: 1, border: 1, borderColor: "divider", borderRadius: 1 }}
-          >
-            <Typography variant="body2" color="text.secondary" sx={{ pr: 2 }}>
-              {k}
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ ml: 2, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-              title={String(v ?? "—")}
+        {visibleEntries.map(([k, v]) => {
+          const display =
+            k === "language" ? getLanguageName(v) : String(v ?? "—");
+          return (
+            <Stack
+              key={k}
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              sx={{ p: 1, border: 1, borderColor: "divider", borderRadius: 1 }}
             >
-              {String(v ?? "—")}
-            </Typography>
-          </Stack>
-        ))}
+              <Typography variant="body2" color="text.secondary" sx={{ pr: 2 }}>
+                {k}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ ml: 2, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                title={display}
+              >
+                {display}
+              </Typography>
+            </Stack>
+          );
+        })}
       </Stack>
     </Box>
   );

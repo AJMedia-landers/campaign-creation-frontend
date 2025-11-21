@@ -3,28 +3,35 @@ import * as React from "react";
 import {
   Box, Button, CircularProgress, IconButton, Stack, Typography, TablePagination,
   Dialog,
+  ButtonGroup,
+  Chip,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import SortIcon from "@mui/icons-material/Sort";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 
 import RequestCard from "@/components/RequestCard";
 import RequestDetailsOverlay from "@/components/RequestDetailsOverlay";
 import CampaignDetailsOverlay from "@/components/CampaignDetailsOverlay";
-
+import EmptyState from "@/components/EmptyState";
+import ColumnsMenu from "@/components/ColumnsMenu"
 import NewRequestDialog from "@/components/NewRequestDialog";
+import NewRequestForm from "@/components/NewRequestForm";
+import RequestsFilter, { defaultRequestsFilter, RequestsFilterValue } from "@/components/RequestsFilter";
+
 import { Campaign, RequestItem } from "@/types/campaign";
 import { usePageSearch } from "@/lib/PageSearchContext";
 import { buildRequestTitle } from "@/lib/requestTitle";
-import RequestsFilter, { defaultRequestsFilter, RequestsFilterValue } from "@/components/RequestsFilter";
-import EmptyState from "@/components/EmptyState";
-import ColumnsMenu from "@/components/ColumnsMenu"
 import { useSocket } from "@/providers/SocketProvider";
-import NewRequestForm from "@/components/NewRequestForm";
+import { getRequestBuildDate } from "@/lib/sortHelpers";
 import { usePathname } from "next/navigation";
 
 
 // ---- fetch helper
 type FetchResult = { items: RequestItem[]; total: number };
+type LanguageOption = { id: string | number; name: string };
 async function fetchRequests(page = 1, limit = 20): Promise<FetchResult> {
   const res = await fetch(`/api/campaigns/campaigns-by-request?page=${page}&limit=${limit}`, { credentials: "include" });
   const text = await res.text();
@@ -42,6 +49,8 @@ async function fetchRequests(page = 1, limit = 20): Promise<FetchResult> {
 
   return { items, total };
 }
+
+type SortOption = "build_time_asc" | "build_time_desc";
 
 const asId = (v: string | number) => String(v);
 
@@ -88,6 +97,7 @@ export default function CampaignSetRequestsPage() {
   const [total, setTotal] = React.useState(0);
   const [page, setPage] = React.useState(0);
   const [rowsPerPage] = React.useState(20); // selector hidden
+  const [languages, setLanguages] = React.useState<LanguageOption[]>([]);
 
   // overlays
   const [reqOverlayOpen, setReqOverlayOpen] = React.useState(false);
@@ -98,9 +108,10 @@ export default function CampaignSetRequestsPage() {
   const [filters, setFilters] = React.useState<RequestsFilterValue>(defaultRequestsFilter);
   const [editOpen, setEditOpen] = React.useState(false);
   const [editOf, setEditOf] = React.useState<RequestItem | null>(null);
+  const [cardSort, setCardSort] = React.useState<SortOption>("build_time_desc");
 
   const mapRequestToFormDefaults = (r: RequestItem) => ({
-    campaign_type: r.campaign_type ?? "",
+    campaign_name_post_fix: r.campaign_name_post_fix ?? "",
     client_name: r.client_name ?? "",
     creatives_folder: r.creatives_folder ?? "",
     ad_platform: Array.isArray(r.ad_platform) ? r.ad_platform : (r.ad_platform ? [r.ad_platform] : []),
@@ -124,7 +135,33 @@ export default function CampaignSetRequestsPage() {
     headline8: r.headline8 ?? "",
     headline9: r.headline9 ?? "",
     campaign_date: r.campaign_date ?? undefined,
+    folder_ids: r.folder_ids ?? [],
   });
+
+  React.useEffect(() => {
+    let canceled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/campaigns/revcontent/languages", {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        const list = Array.isArray(payload?.data) ? payload.data : payload;
+        if (!canceled) {
+          setLanguages((list || []) as LanguageOption[]);
+        }
+      } catch (err) {
+        if (!canceled) {
+          console.error("Failed to load languages", err);
+          setLanguages([]);
+        }
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
 
   const load = React.useCallback(async () => {
@@ -200,7 +237,7 @@ export default function CampaignSetRequestsPage() {
     return items
       .map((req) => {
         const requestLevelValues = [
-          req.campaign_type,
+          req.campaign_name_post_fix,
           req.ad_account_id,
           buildRequestTitle(req),
           req.first_name,
@@ -396,6 +433,22 @@ export default function CampaignSetRequestsPage() {
     };
   }, [socket, onCampaignRequests, handleSocketUpdate]);
 
+  const sortedData = React.useMemo(() => {
+    const list = [...data];
+    list.sort((a, b) => {
+      const da = getRequestBuildDate(a);
+      const db = getRequestBuildDate(b);
+  
+      if (!da && !db) return 0;
+      if (!da) return cardSort === "build_time_asc" ? 1 : -1;
+      if (!db) return cardSort === "build_time_asc" ? -1 : 1;
+  
+      const diff = da.getTime() - db.getTime();
+      return cardSort === "build_time_asc" ? diff : -diff;
+    });
+    return list;
+  }, [data, cardSort]);
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
@@ -409,15 +462,52 @@ export default function CampaignSetRequestsPage() {
           </Button>
         </Stack>
       </Stack>
-      <ColumnsMenu
-        allColumns={allColumns}
-        visible={visibleCols}
-        defaultVisible={defaultVisible}
-        onChange={setVisibleCols}
-        storageKey="req:global:visibleCols"
-        sx={{ mb: 1.5 }}
-      />
+      <Stack direction="row" alignItems="center" justifyContent="space-between">
+        <ColumnsMenu
+          allColumns={allColumns}
+          visible={visibleCols}
+          defaultVisible={defaultVisible}
+          onChange={setVisibleCols}
+          storageKey="req:global:visibleCols"
+          sx={{ mb: 1.5 }}
+        />
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          sx={{ mb: 1 }}
+        >
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <SortIcon fontSize="small" />
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Sort cards by build time
+            </Typography>
+          </Stack>
 
+          <ButtonGroup size="small">
+            <Button
+              startIcon={<ArrowUpwardIcon />}
+              onClick={() => setCardSort("build_time_asc")}
+            >
+              Oldest
+            </Button>
+            <Button
+              startIcon={<ArrowDownwardIcon />}
+              onClick={() => setCardSort("build_time_desc")}
+            >
+              Newest
+            </Button>
+          </ButtonGroup>
+
+          <Chip
+            size="small"
+            label={cardSort === "build_time_asc" ? "Active: Oldest first" : "Active: Newest first"}
+            color="primary"
+            variant="outlined"
+            sx={{ ml: 1 }}
+          />
+        </Stack>
+      </Stack>
       <RequestsFilter
         value={filters}
         onChange={setFilters}
@@ -436,13 +526,14 @@ export default function CampaignSetRequestsPage() {
         ) : (
         <>
           <Stack spacing={2}>
-            {data.map((req) => (
+            {sortedData.map((req) => (
               <RequestCard
                 key={req.id}
                 req={req}
                 onOpenRequest={openRequest}
                 onOpenCampaign={openCampaign}
                 visibleCols={visibleCols}
+                languages={languages}
               />
             ))}
           </Stack>
@@ -476,11 +567,12 @@ export default function CampaignSetRequestsPage() {
         data={campForOverlay}
         onEdit={handleEditCampaign}
         onDelete={handleDeleteCampaign}
+        languages={languages}
       />
 
       <NewRequestDialog open={openNew} onClose={() => setOpenNew(false)} onCreated={load} />
 
-      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="md">
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="lg">
         <Box sx={{ p: { xs: 1.5, md: 2 } }}>
           {editOf && (
             <NewRequestForm
@@ -488,9 +580,26 @@ export default function CampaignSetRequestsPage() {
               editOf={editOf.id}
               defaultValues={mapRequestToFormDefaults(editOf)}
               submitLabel="Save changes"
-              onSubmitted={() => {
+              onSubmitted={(res) => {
                 setEditOpen(false);
                 setEditOf(null);
+
+                if (!res?.data) return;
+
+                const updated: any = res.data;
+                setItems((prev) =>
+                  prev.map((req) =>
+                    String(req.id) === String(updated.id)
+                      ? { ...req, ...updated }
+                      : req
+                  )
+                );
+
+                setReqForOverlay((prev) =>
+                  prev && String(prev.id) === String(updated.id)
+                    ? { ...prev, ...updated }
+                    : prev
+                );
               }}
             />
           )}

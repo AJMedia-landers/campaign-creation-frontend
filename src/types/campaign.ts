@@ -1,9 +1,10 @@
 export interface CampaignRequestInput {
-  campaign_type: string;
+  campaign_name_post_fix: string;
   campaign_date?: string;
   client_name?: string;
   creatives_folder: string;
   ad_platform: string[];
+  folder_ids?: string[];
   ad_account_id?: string;
   brand_name?: string;
   hours_start?: number;
@@ -16,6 +17,10 @@ export interface CampaignRequestInput {
   creative_description?: string;
   headline1?: string; headline2?: string; headline3?: string; headline4?: string; headline5?: string;
   headline6?: string; headline7?: string; headline8?: string; headline9?: string; headline10?: string;
+  review_flag?: boolean;
+  language?: string;
+  pacing?: string,
+  bid_amount?: number,
 }
 
 /** UI-only */
@@ -37,7 +42,7 @@ export type Campaign = {
   campaign_id: string | null;
   tracking_link: string | null;
   campaign_status: string | null;
-  campaign_type: string | null;
+  campaign_name_post_fix: string | null;
   campaign_date: string | null;
   client_name: string | null;
   creatives_folder: string | null;
@@ -77,7 +82,7 @@ export type RequestItem = {
   requester_id: number | null;
   request_date: string | null;
   status: string | null;
-  campaign_type: string | null;
+  campaign_name_post_fix: string | null;
   campaign_date: string | null;
   client_name: string | null;
   creatives_folder: string | null;
@@ -108,5 +113,7 @@ export type RequestItem = {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
+  folder_ids?: string[];
   campaigns?: Campaign[];
+  review_flag?: boolean;
 };
