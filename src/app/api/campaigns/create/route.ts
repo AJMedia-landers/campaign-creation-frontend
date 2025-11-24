@@ -7,15 +7,15 @@ export async function POST(req: Request) {
   const token = (await cookies()).get("token")?.value;
   if (!token) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
+  const formData = await req.formData();
 
   const res = await fetch(`${API}/api/campaigns/create`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(body),
+
+    body: formData,
   });
 
   const text = await res.text();
@@ -23,10 +23,7 @@ export async function POST(req: Request) {
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
 
   if (!res.ok || json?.success === false) {
-    return NextResponse.json(
-      { success: false, status: res.status, ...json },
-      { status: res.status }
-    );
+    return NextResponse.json(json, { status: res.status });
   }
 
   return NextResponse.json(json);
