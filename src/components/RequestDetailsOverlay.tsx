@@ -21,10 +21,11 @@ type Props = {
   onOpenCampaign?: (row: any) => void;
 
   onEditRequest?: (req: RequestItem) => void;
+  onOpenInline?: (req: RequestItem) => void;
 };
 
 export default function RequestDetailsOverlay({
-  open, onClose, data, onDeleteAll, onRecreate, onOpenCampaign, onEditRequest
+  open, onClose, data, onDeleteAll, onRecreate, onOpenCampaign, onEditRequest, onOpenInline
 }: Props) {
   const [expanded, setExpanded] = React.useState(false);
   React.useEffect(() => { if (!open) setExpanded(false); }, [open]);
@@ -144,6 +145,16 @@ export default function RequestDetailsOverlay({
       <Divider sx={{ my: 2 }} />
 
       <Typography component="div" variant="subtitle1" sx={{ mb: 1 }}>Campaigns</Typography>
+      {data && (
+        <Button
+          size="small"
+          variant="outlined"
+          sx={{ mb: 1.5 }}
+          onClick={() => onOpenInline?.(data)}
+        >
+          Expand campaigns
+        </Button>
+      )}
       <Stack spacing={1.25}>
         {(data?.campaigns ?? []).map((c: any, i: number) => (
           <Box

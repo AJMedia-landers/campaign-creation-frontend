@@ -26,7 +26,7 @@ import { usePageSearch } from "@/lib/PageSearchContext";
 import { buildRequestTitle } from "@/lib/requestTitle";
 import { useSocket } from "@/providers/SocketProvider";
 import { getRequestBuildDate } from "@/lib/sortHelpers";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 
 // ---- fetch helper
@@ -91,6 +91,7 @@ export default function CampaignSetRequestsPage() {
   const { socket } = useSocket();
   const { query } = usePageSearch();
   const pathname = usePathname();
+  const router = useRouter();
   const [openNew, setOpenNew] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [items, setItems] = React.useState<RequestItem[]>([]);
@@ -226,6 +227,16 @@ export default function CampaignSetRequestsPage() {
   const handleEditRequest = (req: RequestItem) => {
     setEditOf(req);
     setEditOpen(true);
+  };
+
+  const handleOpenInline = (req: RequestItem) => {
+    const params = new URLSearchParams({
+      request_id: String(req.id),
+      page: String(page + 1),
+      limit: String(rowsPerPage),
+    });
+  
+    router.push(`/campaigns-inline?${params.toString()}`);
   };
 
   const q = query.trim().toLowerCase();
@@ -559,6 +570,7 @@ export default function CampaignSetRequestsPage() {
         onRecreate={handleRecreate}
         onOpenCampaign={openCampaign}
         onEditRequest={handleEditRequest}
+        onOpenInline={handleOpenInline}
       />
 
       <CampaignDetailsOverlay
