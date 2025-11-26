@@ -215,6 +215,38 @@ export default function CampaignSetRequestsPage() {
       alert("Unexpected error while recreating campaigns.");
     }
   };
+
+  const handleCreateAdditionalAds = async (req: RequestItem) => {
+    try {
+
+      const res = await fetch(
+        `/api/campaigns/requests-recreate?id=${encodeURIComponent(String(req.id))}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+          credentials: "include",
+        }
+      );
+
+      const text = await res.text();
+      let json: any = {};
+      try { json = text ? JSON.parse(text) : {}; } catch { json = {}; }
+
+      if (!res.ok || json?.success === false) {
+        console.error("Create additional ads failed:", json);
+        alert(
+          json?.message || "Failed to create additional ads for this request."
+        );
+        return;
+      }
+
+      await load();
+    } catch (e) {
+      console.error(e);
+      alert("Unexpected error while creating additional ads.");
+    }
+  };
   const handleEditCampaign = (c: any) => {
     console.log("Edit campaign", c);
   };
@@ -571,6 +603,7 @@ export default function CampaignSetRequestsPage() {
         onOpenCampaign={openCampaign}
         onEditRequest={handleEditRequest}
         onOpenInline={handleOpenInline}
+        onCreateAdditionalAds={handleCreateAdditionalAds}
       />
 
       <CampaignDetailsOverlay

@@ -22,10 +22,11 @@ type Props = {
 
   onEditRequest?: (req: RequestItem) => void;
   onOpenInline?: (req: RequestItem) => void;
+  onCreateAdditionalAds?: (req: RequestItem) => void;
 };
 
 export default function RequestDetailsOverlay({
-  open, onClose, data, onDeleteAll, onRecreate, onOpenCampaign, onEditRequest, onOpenInline
+  open, onClose, data, onDeleteAll, onRecreate, onOpenCampaign, onEditRequest, onOpenInline, onCreateAdditionalAds
 }: Props) {
   const [expanded, setExpanded] = React.useState(false);
   React.useEffect(() => { if (!open) setExpanded(false); }, [open]);
@@ -52,8 +53,16 @@ export default function RequestDetailsOverlay({
                 >
                   Recreate campaigns
                 </Button>
-                </>
-              )}
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => onCreateAdditionalAds?.(data)}
+                >
+                  Create additional ads
+                </Button>
+              </>
+
+            )}
           </Stack>
 
           {/* <Button
@@ -212,7 +221,7 @@ export default function RequestDetailsOverlay({
       anchor="right"
       open={open}
       onClose={onClose}
-      PaperProps={{ sx: { width: { xs: "92vw", sm: 520 } } }}
+      PaperProps={{ sx: { width: { xs: "92vw", sm: 620 } } }}
     >
       <Box sx={{ pt: 1 }}>
         {HeaderBar}
