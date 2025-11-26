@@ -119,7 +119,7 @@ export default function CampaignDetailsOverlay({
       anchor="right"
       open={open}
       onClose={onClose}
-      PaperProps={{ sx: { width: { xs: "92vw", sm: 520 } } }}
+      PaperProps={{ sx: { width: { xs: "92vw", sm: 620 } } }}
     >
       <Box sx={{ pt: 1 }}>
         {HeaderBar}

@@ -26,7 +26,7 @@ import { usePageSearch } from "@/lib/PageSearchContext";
 import { buildRequestTitle } from "@/lib/requestTitle";
 import { useSocket } from "@/providers/SocketProvider";
 import { getRequestBuildDate } from "@/lib/sortHelpers";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 
 // ---- fetch helper
@@ -91,6 +91,7 @@ export default function CampaignSetRequestsPage() {
   const { socket } = useSocket();
   const { query } = usePageSearch();
   const pathname = usePathname();
+  const router = useRouter();
   const [openNew, setOpenNew] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [items, setItems] = React.useState<RequestItem[]>([]);
@@ -214,6 +215,38 @@ export default function CampaignSetRequestsPage() {
       alert("Unexpected error while recreating campaigns.");
     }
   };
+
+  const handleCreateAdditionalAds = async (req: RequestItem) => {
+    try {
+
+      const res = await fetch(
+        `/api/campaigns/requests-recreate?id=${encodeURIComponent(String(req.id))}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+          credentials: "include",
+        }
+      );
+
+      const text = await res.text();
+      let json: any = {};
+      try { json = text ? JSON.parse(text) : {}; } catch { json = {}; }
+
+      if (!res.ok || json?.success === false) {
+        console.error("Create additional ads failed:", json);
+        alert(
+          json?.message || "Failed to create additional ads for this request."
+        );
+        return;
+      }
+
+      await load();
+    } catch (e) {
+      console.error(e);
+      alert("Unexpected error while creating additional ads.");
+    }
+  };
   const handleEditCampaign = (c: any) => {
     console.log("Edit campaign", c);
   };
@@ -226,6 +259,16 @@ export default function CampaignSetRequestsPage() {
   const handleEditRequest = (req: RequestItem) => {
     setEditOf(req);
     setEditOpen(true);
+  };
+
+  const handleOpenInline = (req: RequestItem) => {
+    const params = new URLSearchParams({
+      request_id: String(req.id),
+      page: String(page + 1),
+      limit: String(rowsPerPage),
+    });
+  
+    router.push(`/campaigns-inline?${params.toString()}`);
   };
 
   const q = query.trim().toLowerCase();
@@ -559,6 +602,8 @@ export default function CampaignSetRequestsPage() {
         onRecreate={handleRecreate}
         onOpenCampaign={openCampaign}
         onEditRequest={handleEditRequest}
+        onOpenInline={handleOpenInline}
+        onCreateAdditionalAds={handleCreateAdditionalAds}
       />
 
       <CampaignDetailsOverlay
