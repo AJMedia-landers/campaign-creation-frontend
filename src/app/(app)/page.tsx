@@ -5,6 +5,7 @@ import {
   Dialog,
   ButtonGroup,
   Chip,
+  Snackbar, Alert
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -111,6 +112,14 @@ export default function CampaignSetRequestsPage() {
   const [editOf, setEditOf] = React.useState<RequestItem | null>(null);
   const [cardSort, setCardSort] = React.useState<SortOption>("build_time_desc");
 
+  const [toastOpen, setToastOpen] = React.useState(false);
+  const [toastMsg, setToastMsg] = React.useState("");
+  const [toastSeverity, setToastSeverity] =
+    React.useState<"success" | "error" | "warning" | "info">("info");
+
+  const [creatingAdditionalAds, setCreatingAdditionalAds] = React.useState(false);
+  const [recreating, setRecreating] = React.useState(false);
+
   const mapRequestToFormDefaults = (r: RequestItem) => ({
     campaign_name_post_fix: r.campaign_name_post_fix ?? "",
     client_name: r.client_name ?? "",
@@ -188,9 +197,12 @@ export default function CampaignSetRequestsPage() {
   const handleRecreate = async (req: RequestItem) => {
     try {
       setReqOverlayOpen(false);
-
+      setRecreating(true);
+  
       const res = await fetch(
-        `/api/campaigns/requests-recreate?id=${encodeURIComponent(String(req.id))}`,
+        `/api/campaigns/requests-recreate?id=${encodeURIComponent(
+          String(req.id)
+        )}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -198,29 +210,48 @@ export default function CampaignSetRequestsPage() {
           credentials: "include",
         }
       );
-
+  
       const text = await res.text();
       let json: any = {};
-      try { json = text ? JSON.parse(text) : {}; } catch { json = {}; }
-
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        json = {};
+      }
+  
       if (!res.ok || json?.success === false) {
         console.error("Recreate failed:", json);
-        alert(json?.message || "Failed to recreate campaigns for this request.");
+        setToastMsg(
+          json?.message || "Failed to recreate campaigns for this request."
+        );
+        setToastSeverity("error");
+        setToastOpen(true);
         return;
       }
-
+  
+      setToastMsg(json?.message || "Campaigns recreated successfully.");
+      setToastSeverity("success");
+      setToastOpen(true);
+  
       await load();
     } catch (e) {
       console.error(e);
-      alert("Unexpected error while recreating campaigns.");
+      setToastMsg("Unexpected error while recreating campaigns.");
+      setToastSeverity("error");
+      setToastOpen(true);
+    } finally {
+      setRecreating(false);
     }
   };
 
   const handleCreateAdditionalAds = async (req: RequestItem) => {
     try {
-
+      setCreatingAdditionalAds(true);
+  
       const res = await fetch(
-        `/api/campaigns/create-additional-ads?id=${encodeURIComponent(String(req.id))}`,
+        `/api/campaigns/create-additional-ads?id=${encodeURIComponent(
+          String(req.id)
+        )}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -228,23 +259,37 @@ export default function CampaignSetRequestsPage() {
           credentials: "include",
         }
       );
-
+  
       const text = await res.text();
       let json: any = {};
-      try { json = text ? JSON.parse(text) : {}; } catch { json = {}; }
-
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        json = {};
+      }
+  
       if (!res.ok || json?.success === false) {
         console.error("Create additional ads failed:", json);
-        alert(
+        setToastMsg(
           json?.message || "Failed to create additional ads for this request."
         );
+        setToastSeverity("error");
+        setToastOpen(true);
         return;
       }
-
+  
+      setToastMsg(json?.message || "Additional ads are being created.");
+      setToastSeverity("success");
+      setToastOpen(true);
+  
       await load();
     } catch (e) {
       console.error(e);
-      alert("Unexpected error while creating additional ads.");
+      setToastMsg("Unexpected error while creating additional ads.");
+      setToastSeverity("error");
+      setToastOpen(true);
+    } finally {
+      setCreatingAdditionalAds(false);
     }
   };
   const handleEditCampaign = (c: any) => {
@@ -494,6 +539,21 @@ export default function CampaignSetRequestsPage() {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
+       <Snackbar
+        open={toastOpen}
+        onClose={() => setToastOpen(false)}
+        autoHideDuration={5000}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Alert
+          severity={toastSeverity}
+          variant="filled"
+          onClose={() => setToastOpen(false)}
+          sx={{ whiteSpace: "pre-wrap", minWidth: 300 }}
+        >
+          {toastMsg}
+        </Alert>
+      </Snackbar>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
         <Typography variant="h4">Campaign Set Requests</Typography>
         <Stack direction="row" spacing={1}>
@@ -604,6 +664,8 @@ export default function CampaignSetRequestsPage() {
         onEditRequest={handleEditRequest}
         onOpenInline={handleOpenInline}
         onCreateAdditionalAds={handleCreateAdditionalAds}
+        createAdditionalAdsLoading={creatingAdditionalAds}
+        recreateLoading={recreating}
       />
 
       <CampaignDetailsOverlay
