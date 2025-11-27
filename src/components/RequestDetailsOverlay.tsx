@@ -2,7 +2,7 @@
 import * as React from "react";
 import {
   AppBar, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Drawer, IconButton,
-  Stack, Toolbar, Typography
+  Stack, Toolbar, Typography, CircularProgress
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
@@ -23,10 +23,12 @@ type Props = {
   onEditRequest?: (req: RequestItem) => void;
   onOpenInline?: (req: RequestItem) => void;
   onCreateAdditionalAds?: (req: RequestItem) => void;
+  createAdditionalAdsLoading?: boolean;
+  recreateLoading?: boolean;
 };
 
 export default function RequestDetailsOverlay({
-  open, onClose, data, onDeleteAll, onRecreate, onOpenCampaign, onEditRequest, onOpenInline, onCreateAdditionalAds
+  open, onClose, data, onDeleteAll, onRecreate, onOpenCampaign, onEditRequest, onOpenInline, onCreateAdditionalAds, createAdditionalAdsLoading, recreateLoading 
 }: Props) {
   const [expanded, setExpanded] = React.useState(false);
   React.useEffect(() => { if (!open) setExpanded(false); }, [open]);
@@ -50,6 +52,7 @@ export default function RequestDetailsOverlay({
                   size="small"
                   variant="contained"
                   onClick={() => setConfirmOpen(true)}
+                  disabled={recreateLoading}
                 >
                   Recreate campaigns
                 </Button>
@@ -57,6 +60,12 @@ export default function RequestDetailsOverlay({
                   size="small"
                   variant="outlined"
                   onClick={() => onCreateAdditionalAds?.(data)}
+                  disabled={createAdditionalAdsLoading}
+                  startIcon={
+                    createAdditionalAdsLoading ? (
+                      <CircularProgress size={14} />
+                    ) : undefined
+                  }
                 >
                   Create additional ads
                 </Button>
@@ -202,6 +211,22 @@ export default function RequestDetailsOverlay({
           <Typography variant="body2" color="text.secondary">No campaigns found.</Typography>
         )}
       </Stack>
+
+      {(createAdditionalAdsLoading || recreateLoading) && (
+        <Box
+          sx={{
+            position: "absolute",
+            inset: 0,
+            bgcolor: "rgba(255,255,255,0.65)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 9999,
+          }}
+        >
+          <CircularProgress />
+        </Box>
+      )}
     </Box>
   );
 
