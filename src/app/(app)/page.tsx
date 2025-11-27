@@ -220,7 +220,7 @@ export default function CampaignSetRequestsPage() {
     try {
 
       const res = await fetch(
-        `/api/campaigns/requests-recreate?id=${encodeURIComponent(String(req.id))}`,
+        `/api/campaigns/create-additional-ads?id=${encodeURIComponent(String(req.id))}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

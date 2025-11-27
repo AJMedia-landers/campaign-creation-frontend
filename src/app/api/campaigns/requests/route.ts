@@ -9,7 +9,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  const formData = await req.formData();
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
@@ -17,10 +17,9 @@ export async function PATCH(req: NextRequest) {
   const res = await fetch(`${API}/api/campaigns/requests/${id}`, {
     method: "PATCH",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(body),
+    body: formData,
   });
 
   const text = await res.text();
