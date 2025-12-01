@@ -283,7 +283,7 @@ export default function RequestsFilter({ value, onChange, onClear }: Props) {
                 }
                 MenuProps={MENU_PROPS}
               >
-                {["Taboola", "Outbrain", "RevContent", "MediaGo"].map((opt) => (
+                {["Taboola", "Outbrain", "RevContent"].map((opt) => (
                   <MenuItem key={opt} value={opt}>
                     {opt}
                   </MenuItem>

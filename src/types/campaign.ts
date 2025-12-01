@@ -116,4 +116,7 @@ export type RequestItem = {
   folder_ids?: string[];
   campaigns?: Campaign[];
   review_flag?: boolean;
+  language?: string;
+  pacing?: string,
+  bid_amount?: number,
 };

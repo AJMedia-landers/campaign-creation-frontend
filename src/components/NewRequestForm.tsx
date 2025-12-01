@@ -50,7 +50,6 @@ const PLATFORMS = [
   { id: "Taboola", label: "Taboola" },
   { id: "Outbrain", label: "Outbrain" },
   { id: "RevContent", label: "RevContent" },
-  { id: "MediaGo", label: "MediaGo" },
 ];
 
 const DEVICES = [
@@ -123,6 +122,7 @@ export default function NewRequestForm({
     ...(defaultValues || {}),
   });
 
+  console.log("Form state:", defaultValues);
   const [extras, setExtras] = useState<UIExtras>({
     campaign_nickname: "",
     ...(defaultValues || {}),

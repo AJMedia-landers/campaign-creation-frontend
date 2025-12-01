@@ -135,6 +135,9 @@ export default function CampaignSetRequestsPage() {
     daily_budget: Number(r.daily_budget ?? 0),
     cta_button: r.cta_button ?? "Learn more",
     creative_description: r.creative_description ?? "",
+    language: r.language ?? "",
+    pacing: r.pacing ?? "off",
+    bid_amount: Number((r as any).bid_amount ?? 0),
     headline1: r.headline1 ?? "",
     headline2: r.headline2 ?? "",
     headline3: r.headline3 ?? "",
@@ -537,6 +540,7 @@ export default function CampaignSetRequestsPage() {
     return list;
   }, [data, cardSort]);
 
+  console.log(data)
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
        <Snackbar
