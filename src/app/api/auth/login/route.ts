@@ -21,11 +21,14 @@ export async function POST(req: Request) {
     );
   }
 
+  const TWO_DAYS_SECONDS = 60 * 60 * 24 * 2;
+
   const token: string = json.data.token;
   (await cookies()).set("token", token, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
+    maxAge: TWO_DAYS_SECONDS,
   });
 
   (await cookies()).set("cc_token", token, {
