@@ -12,10 +12,13 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import Tooltip from "@mui/material/Tooltip";
 import SettingsIcon from "@mui/icons-material/Settings";
+import TableChartIcon from '@mui/icons-material/TableChart';
+
 
 const BASE_NAV_ITEMS = [
   { label: "New Request Form", href: "/new-request", Icon: AddCircleOutlineIcon },
   { label: "Campaign Set Requests", href: "/", Icon: ChecklistOutlinedIcon },
+  { label: "RevContent", href: "/revcontent-approved", Icon: TableChartIcon },
 ];
 
 
