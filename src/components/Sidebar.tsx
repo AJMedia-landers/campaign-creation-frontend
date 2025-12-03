@@ -19,7 +19,7 @@ const BASE_NAV_ITEMS = [
 ];
 
 
-const ADMIN_EMAILS = ["uliana.sedko@ajmedia.io", "ivan.plametiuk@ajmedia.io"];
+const ADMIN_EMAILS = ["uliana.sedko@ajmedia.io", "ivan.plametiuk@ajmedia.io", "janessa.pandiyan@ajmedia.io"];
 
 type CurrentUser = {
   email?: string;

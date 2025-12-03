@@ -7,12 +7,12 @@ export interface CampaignRequestInput {
   folder_ids?: string[];
   ad_account_id?: string;
   brand_name?: string;
-  hours_start?: number;
-  hours_end?: number;
+  hours_start?: number | string;
+  hours_end?: number | string;
   timezone: string;
   country: string;
   device: string[];
-  daily_budget?: number;
+  daily_budget?: number | string;
   cta_button?: string;
   creative_description?: string;
   headline1?: string; headline2?: string; headline3?: string; headline4?: string; headline5?: string;
@@ -20,7 +20,7 @@ export interface CampaignRequestInput {
   review_flag?: boolean;
   language?: string;
   pacing?: string,
-  bid_amount?: number,
+  bid_amount?: number | string,
 }
 
 /** UI-only */

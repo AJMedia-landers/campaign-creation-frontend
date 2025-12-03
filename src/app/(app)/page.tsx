@@ -540,7 +540,7 @@ export default function CampaignSetRequestsPage() {
     return list;
   }, [data, cardSort]);
 
-  console.log(data)
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
        <Snackbar
