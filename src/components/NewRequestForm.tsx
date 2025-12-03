@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ClipboardEvent } from "react";
 import {
   Box,
@@ -50,7 +50,6 @@ const PLATFORMS = [
   { id: "Taboola", label: "Taboola" },
   { id: "Outbrain", label: "Outbrain" },
   { id: "RevContent", label: "RevContent" },
-  { id: "MediaGo", label: "MediaGo" },
 ];
 
 const DEVICES = [
@@ -96,6 +95,8 @@ export default function NewRequestForm({
   const [folderError, setFolderError] = useState<string | null>(null);
   const [driveUrlInput, setDriveUrlInput] = useState("");
   const [showMoreHeadlines, setShowMoreHeadlines] = useState(false);
+  const [widgetTargetFile, setWidgetTargetFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // ---- form state
   const [form, setForm] = useState<CampaignRequestInput>({
@@ -121,6 +122,7 @@ export default function NewRequestForm({
     ...(defaultValues || {}),
   });
 
+  console.log("Form state:", defaultValues);
   const [extras, setExtras] = useState<UIExtras>({
     campaign_nickname: "",
     ...(defaultValues || {}),
@@ -572,10 +574,18 @@ export default function NewRequestForm({
 
       const method = editOf ? "PATCH" : "POST";
 
+      const formData = new FormData();
+      formData.append("data", JSON.stringify(payload));
+
+      if (widgetTargetFile) {
+        formData.append("widget_target_file", widgetTargetFile);
+      }
+
+      console.log("FormData entries:", [...formData.entries()]);
+
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: formData,
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.success === false) {
@@ -993,78 +1003,137 @@ export default function NewRequestForm({
           )}
 
           {form.ad_platform.includes("RevContent") && (
+            <>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 2,
+                  alignItems: "flex-end",
+                  gridTemplateColumns: { xs: "1fr", md: "0.25fr 0.75fr 1.0fr" },
+                }}
+              >
+
+                {/* Pacing toggle */}
+                <Box>
+                  <Typography component="div" sx={{ mb: 1 }}>
+                    Pacing
+                  </Typography>
+                  <ToggleButtonGroup
+                    exclusive
+                    value={form.pacing || "off"}
+                    onChange={(_, val) => val && onChange("pacing", val)}
+                    aria-label="pacing"
+                  >
+                    <ToggleButton value="off">Off</ToggleButton>
+                    <ToggleButton value="on">On</ToggleButton>
+                  </ToggleButtonGroup>
+                  {!!errors.pacing && (
+                    <Typography component="div" variant="caption" color="error">
+                      {errors.pacing}
+                    </Typography>
+                  )}
+                </Box>
+
+                {/* Bid amount */}
+                <TextField
+                  sx={{
+                    "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
+                      { WebkitAppearance: "none", margin: 0 },
+                    "& input[type=number]": { MozAppearance: "textfield" },
+                  }}
+                  label="BidAmount (RevContent)"
+                  type="number"
+                  value={form.bid_amount ?? 0}
+                  onChange={(e) => onChange("bid_amount", Number(e.target.value))}
+                  required
+                  error={!!errors.bid_amount}
+                  helperText={errors.bid_amount}
+                  InputProps={{
+                    inputProps: { min: 0, step: 0.01 },
+                  }}
+                  fullWidth
+                />
+
+                {/* Language selector */}
+                <Autocomplete
+                  options={languages}
+                  getOptionLabel={(opt) => opt.name}
+                  value={
+                    languages.find((l) => l.id === (form.language as string)) || null
+                  }
+                  onChange={(_, val) => onChange("language", val?.id ?? "")}
+                  loading={langLoading}
+                  loadingText="Loading languages…"
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Language (RevContent)"
+                      placeholder="Search"
+                      required
+                      error={!!errors.language}
+                      helperText={errors.language || langError || ""}
+                    />
+                  )}
+                />
+              </Box>
+              {/* Widget Target file upload */}
             <Box
               sx={{
-                display: "grid",
-                gap: 2,
-                alignItems: "flex-end",
-                gridTemplateColumns: { xs: "1fr", md: "0.25fr 0.75fr 1.0fr" },
+                display: "flex",
+                flexDirection: { xs: "column", sm: "row" },
+                alignItems: { xs: "flex-start", sm: "center" },
+                gap: 1.5,
               }}
             >
-
-              {/* Pacing toggle */}
-              <Box>
-                <Typography component="div" sx={{ mb: 1 }}>
-                  Pacing
+              <Box sx={{ flexShrink: 0 }}>
+                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                  Widget Target File (optional)
                 </Typography>
-                <ToggleButtonGroup
-                  exclusive
-                  value={form.pacing || "off"}
-                  onChange={(_, val) => val && onChange("pacing", val)}
-                  aria-label="pacing"
-                >
-                  <ToggleButton value="off">Off</ToggleButton>
-                  <ToggleButton value="on">On</ToggleButton>
-                </ToggleButtonGroup>
-                {!!errors.pacing && (
-                  <Typography component="div" variant="caption" color="error">
-                    {errors.pacing}
-                  </Typography>
-                )}
+                <Typography variant="caption" color="text.secondary">
+                  CSV or Excel file for widget targeting
+                </Typography>
               </Box>
 
-              {/* Bid amount */}
-              <TextField
-                sx={{
-                  "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
-                    { WebkitAppearance: "none", margin: 0 },
-                  "& input[type=number]": { MozAppearance: "textfield" },
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xls,.xlsx"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  setWidgetTargetFile(file);
                 }}
-                label="BidAmount (RevContent)"
-                type="number"
-                value={form.bid_amount ?? 0}
-                onChange={(e) => onChange("bid_amount", Number(e.target.value))}
-                required
-                error={!!errors.bid_amount}
-                helperText={errors.bid_amount}
-                InputProps={{
-                  inputProps: { min: 0, step: 0.01 },
-                }}
-                fullWidth
               />
 
-              {/* Language selector */}
-              <Autocomplete
-                options={languages}
-                getOptionLabel={(opt) => opt.name}
-                value={
-                  languages.find((l) => l.id === (form.language as string)) || null
-                }
-                onChange={(_, val) => onChange("language", val?.id ?? "")}
-                loading={langLoading}
-                loadingText="Loading languages…"
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Language (RevContent)"
-                    placeholder="Search"
-                    required
-                    error={!!errors.language}
-                    helperText={errors.language || langError || ""}
-                  />
-                )}
-              />
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 1,
+                  ml: { xs: 0, sm: 2 },
+                }}
+              >
+                <Button
+                  variant="outlined"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {widgetTargetFile ? "Change file" : "Upload file"}
+                </Button>
+
+                <Typography
+                  variant="body2"
+                  color={widgetTargetFile ? "text.primary" : "text.secondary"}
+                  sx={{ wordBreak: "break-all" }}
+                >
+                  {widgetTargetFile
+                    ? widgetTargetFile.name
+                    : "No file selected"}
+                </Typography>
+              </Box>
             </Box>
+            </>
+
           )}
 
           <TextField

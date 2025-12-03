@@ -7,15 +7,18 @@ export async function POST(req: Request) {
   const token = (await cookies()).get("token")?.value;
   if (!token) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
 
-  const formData = await req.formData();
+  const body = await req.json();
 
-  const res = await fetch(`${API}/api/campaigns/create`, {
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+
+  const res = await fetch(`${API}/api/campaigns/requests/${id}/ads`, {
     method: "POST",
     headers: {
+      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-
-    body: formData,
+    body: JSON.stringify(body),
   });
 
   const text = await res.text();
@@ -23,7 +26,10 @@ export async function POST(req: Request) {
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
 
   if (!res.ok || json?.success === false) {
-    return NextResponse.json(json, { status: res.status });
+    return NextResponse.json(
+      { success: false, status: res.status, ...json },
+      { status: res.status }
+    );
   }
 
   return NextResponse.json(json);

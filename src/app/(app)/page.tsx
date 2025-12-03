@@ -5,6 +5,7 @@ import {
   Dialog,
   ButtonGroup,
   Chip,
+  Snackbar, Alert
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -26,7 +27,7 @@ import { usePageSearch } from "@/lib/PageSearchContext";
 import { buildRequestTitle } from "@/lib/requestTitle";
 import { useSocket } from "@/providers/SocketProvider";
 import { getRequestBuildDate } from "@/lib/sortHelpers";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 
 // ---- fetch helper
@@ -91,6 +92,7 @@ export default function CampaignSetRequestsPage() {
   const { socket } = useSocket();
   const { query } = usePageSearch();
   const pathname = usePathname();
+  const router = useRouter();
   const [openNew, setOpenNew] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [items, setItems] = React.useState<RequestItem[]>([]);
@@ -110,6 +112,14 @@ export default function CampaignSetRequestsPage() {
   const [editOf, setEditOf] = React.useState<RequestItem | null>(null);
   const [cardSort, setCardSort] = React.useState<SortOption>("build_time_desc");
 
+  const [toastOpen, setToastOpen] = React.useState(false);
+  const [toastMsg, setToastMsg] = React.useState("");
+  const [toastSeverity, setToastSeverity] =
+    React.useState<"success" | "error" | "warning" | "info">("info");
+
+  const [creatingAdditionalAds, setCreatingAdditionalAds] = React.useState(false);
+  const [recreating, setRecreating] = React.useState(false);
+
   const mapRequestToFormDefaults = (r: RequestItem) => ({
     campaign_name_post_fix: r.campaign_name_post_fix ?? "",
     client_name: r.client_name ?? "",
@@ -125,6 +135,9 @@ export default function CampaignSetRequestsPage() {
     daily_budget: Number(r.daily_budget ?? 0),
     cta_button: r.cta_button ?? "Learn more",
     creative_description: r.creative_description ?? "",
+    language: r.language ?? "",
+    pacing: r.pacing ?? "off",
+    bid_amount: Number((r as any).bid_amount ?? 0),
     headline1: r.headline1 ?? "",
     headline2: r.headline2 ?? "",
     headline3: r.headline3 ?? "",
@@ -187,9 +200,12 @@ export default function CampaignSetRequestsPage() {
   const handleRecreate = async (req: RequestItem) => {
     try {
       setReqOverlayOpen(false);
-
+      setRecreating(true);
+  
       const res = await fetch(
-        `/api/campaigns/requests-recreate?id=${encodeURIComponent(String(req.id))}`,
+        `/api/campaigns/requests-recreate?id=${encodeURIComponent(
+          String(req.id)
+        )}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -197,21 +213,86 @@ export default function CampaignSetRequestsPage() {
           credentials: "include",
         }
       );
-
+  
       const text = await res.text();
       let json: any = {};
-      try { json = text ? JSON.parse(text) : {}; } catch { json = {}; }
-
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        json = {};
+      }
+  
       if (!res.ok || json?.success === false) {
         console.error("Recreate failed:", json);
-        alert(json?.message || "Failed to recreate campaigns for this request.");
+        setToastMsg(
+          json?.message || "Failed to recreate campaigns for this request."
+        );
+        setToastSeverity("error");
+        setToastOpen(true);
         return;
       }
-
+  
+      setToastMsg(json?.message || "Campaigns recreated successfully.");
+      setToastSeverity("success");
+      setToastOpen(true);
+  
       await load();
     } catch (e) {
       console.error(e);
-      alert("Unexpected error while recreating campaigns.");
+      setToastMsg("Unexpected error while recreating campaigns.");
+      setToastSeverity("error");
+      setToastOpen(true);
+    } finally {
+      setRecreating(false);
+    }
+  };
+
+  const handleCreateAdditionalAds = async (req: RequestItem) => {
+    try {
+      setCreatingAdditionalAds(true);
+  
+      const res = await fetch(
+        `/api/campaigns/create-additional-ads?id=${encodeURIComponent(
+          String(req.id)
+        )}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+          credentials: "include",
+        }
+      );
+  
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        json = {};
+      }
+  
+      if (!res.ok || json?.success === false) {
+        console.error("Create additional ads failed:", json);
+        setToastMsg(
+          json?.message || "Failed to create additional ads for this request."
+        );
+        setToastSeverity("error");
+        setToastOpen(true);
+        return;
+      }
+  
+      setToastMsg(json?.message || "Additional ads are being created.");
+      setToastSeverity("success");
+      setToastOpen(true);
+  
+      await load();
+    } catch (e) {
+      console.error(e);
+      setToastMsg("Unexpected error while creating additional ads.");
+      setToastSeverity("error");
+      setToastOpen(true);
+    } finally {
+      setCreatingAdditionalAds(false);
     }
   };
   const handleEditCampaign = (c: any) => {
@@ -226,6 +307,16 @@ export default function CampaignSetRequestsPage() {
   const handleEditRequest = (req: RequestItem) => {
     setEditOf(req);
     setEditOpen(true);
+  };
+
+  const handleOpenInline = (req: RequestItem) => {
+    const params = new URLSearchParams({
+      request_id: String(req.id),
+      page: String(page + 1),
+      limit: String(rowsPerPage),
+    });
+  
+    router.push(`/campaigns-inline?${params.toString()}`);
   };
 
   const q = query.trim().toLowerCase();
@@ -449,8 +540,24 @@ export default function CampaignSetRequestsPage() {
     return list;
   }, [data, cardSort]);
 
+  console.log(data)
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
+       <Snackbar
+        open={toastOpen}
+        onClose={() => setToastOpen(false)}
+        autoHideDuration={5000}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Alert
+          severity={toastSeverity}
+          variant="filled"
+          onClose={() => setToastOpen(false)}
+          sx={{ whiteSpace: "pre-wrap", minWidth: 300 }}
+        >
+          {toastMsg}
+        </Alert>
+      </Snackbar>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
         <Typography variant="h4">Campaign Set Requests</Typography>
         <Stack direction="row" spacing={1}>
@@ -559,6 +666,10 @@ export default function CampaignSetRequestsPage() {
         onRecreate={handleRecreate}
         onOpenCampaign={openCampaign}
         onEditRequest={handleEditRequest}
+        onOpenInline={handleOpenInline}
+        onCreateAdditionalAds={handleCreateAdditionalAds}
+        createAdditionalAdsLoading={creatingAdditionalAds}
+        recreateLoading={recreating}
       />
 
       <CampaignDetailsOverlay
