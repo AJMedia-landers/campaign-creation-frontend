@@ -19,10 +19,9 @@ const BASE_NAV_ITEMS = [
 ];
 
 
-const ADMIN_EMAILS = ["uliana.sedko@ajmedia.io", "ivan.plametiuk@ajmedia.io", "janessa.pandiyan@ajmedia.io"];
-
 type CurrentUser = {
   email?: string;
+  role?: string;
 };
 
 export default function Sidebar() {
@@ -41,9 +40,10 @@ export default function Sidebar() {
 
         const json = await res.json();
         const email: string | undefined = json?.data?.user?.email;
+        const role: string | undefined = json?.data?.user?.role;
 
         if (!cancelled) {
-          setUser({ email });
+          setUser({ email, role });
         }
       } catch {
         if (!cancelled) setUser(null);
@@ -57,8 +57,8 @@ export default function Sidebar() {
     };
   }, []);
 
-  
-  const isAdmin = user && ADMIN_EMAILS.includes(String(user.email || "").toLowerCase());
+
+  const isAdmin = user && (user.role === "admin" || user.role === "super-admin");
 
   // remember user preference
   useEffect(() => {
