@@ -47,6 +47,13 @@ type FlowConfig = {
   preferred_tracking_domain: string;
 };
 
+type ClientName = {
+  id: number;
+  name: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 type TabValue = "flow-config" | "client-config";
 
 type FlowFormState = {
@@ -59,6 +66,13 @@ type FlowFormState = {
 type FlowConfigDialogProps = {
   open: boolean;
   initial: FlowConfig | null;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+};
+
+type ClientDialogProps = {
+  open: boolean;
+  initial: ClientName | null;
   onClose: () => void;
   onSaved: () => Promise<void>;
 };
@@ -238,6 +252,105 @@ const FlowConfigDialog: React.FC<FlowConfigDialogProps> = React.memo(
   }
 );
 
+const ClientDialog: React.FC<ClientDialogProps> = React.memo(
+  ({ open, initial, onClose, onSaved }) => {
+    const [name, setName] = React.useState("");
+    const [saving, setSaving] = React.useState(false);
+    const [error, setError] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+      if (!open) return;
+      setName(initial?.name ?? "");
+      setError(null);
+    }, [open, initial]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+
+      const trimmed = name.trim();
+      if (!trimmed) {
+        setError("Client name is required.");
+        return;
+      }
+
+      const payload = { name: trimmed };
+
+      try {
+        setSaving(true);
+        let res: Response;
+
+        if (initial) {
+          // UPDATE
+          res = await fetch(`/api/client-names/update?id=${initial.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(payload),
+          });
+        } else {
+          // CREATE
+          res = await fetch("/api/client-names/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(payload),
+          });
+        }
+
+        const text = await res.text();
+        const json = text ? JSON.parse(text) : {};
+        if (!res.ok || json?.success === false) {
+          throw new Error(json?.message || "Failed to save client");
+        }
+
+        await onSaved();
+        onClose();
+      } catch (err: any) {
+        setError(err?.message || "Unknown error");
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    return (
+      <Dialog
+        open={open}
+        onClose={saving ? undefined : onClose}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          {initial ? "Edit client name" : "Create client name"}
+        </DialogTitle>
+        <form onSubmit={handleSubmit}>
+          <DialogContent dividers>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                label="Client name"
+                helperText='Example: Acme Corporation'
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                fullWidth
+                required
+              />
+              {error && <Alert severity="error">{error}</Alert>}
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={onClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="contained" disabled={saving}>
+              {saving ? "Saving…" : initial ? "Save changes" : "Create"}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+    );
+  }
+);
+
 export default function AdminPage() {
   const router = useRouter();
   const { query } = usePageSearch();
@@ -259,12 +372,22 @@ export default function AdminPage() {
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<FlowConfig | null>(null);
 
-  const [clientName, setClientName] = React.useState("");
-  const [clientGeneratedConfig, setClientGeneratedConfig] =
-    React.useState<string>("");
-  const [clientError, setClientError] = React.useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = React.useState(false);
   const [flowToDelete, setFlowToDelete] = React.useState<FlowConfig | null>(null);
+
+  const [clients, setClients] = React.useState<ClientName[]>([]);
+  const [clientsLoading, setClientsLoading] = React.useState(false);
+  const [clientsError, setClientsError] = React.useState<string | null>(null);
+  const [clientDialogOpen, setClientDialogOpen] = React.useState(false);
+  const [editingClient, setEditingClient] =
+    React.useState<ClientName | null>(null);
+  const [clientDeleteId, setClientDeleteId] = React.useState<number | null>(
+    null
+  );
+  const [clientDeleteModalOpen, setClientDeleteModalOpen] =
+    React.useState(false);
+  const [clientToDelete, setClientToDelete] =
+    React.useState<ClientName | null>(null);
 
   // --------- ACCESS GUARD ----------
   React.useEffect(() => {
@@ -346,18 +469,36 @@ export default function AdminPage() {
     }
   }, []);
 
-  React.useEffect(() => {
-    if (!userLoaded || accessDenied) return;
-    loadFlows();
-  }, [userLoaded, accessDenied, loadFlows]);
+  const loadClients = React.useCallback(async () => {
+    setClientsLoading(true);
+    setClientsError(null);
+    try {
+      const res = await fetch("/api/client-names/get", {
+        credentials: "include",
+      });
+      const json = await res.json();
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.message || "Failed to load client names");
+      }
+      setClients(json.data);
+    } catch (err: any) {
+      setClientsError(err.message);
+    } finally {
+      setClientsLoading(false);
+    }
+  }, []);
 
   React.useEffect(() => {
     if (!userLoaded || accessDenied) return;
     loadFlows();
-  }, [userLoaded, accessDenied, loadFlows]);
+    loadClients();
+  }, [userLoaded, accessDenied, loadFlows, loadClients]);
+
+
 
   // ---------- search  ----------
   const search = (query ?? "").trim().toLowerCase();
+
   const visibleFlows = React.useMemo(() => {
     if (!search) return flows;
     return flows.filter((f) => {
@@ -374,6 +515,13 @@ export default function AdminPage() {
       );
     });
   }, [flows, search]);
+
+  const visibleClients = React.useMemo(() => {
+    if (!search) return clients;
+    return clients.filter((c) =>
+      c.name.toLowerCase().includes(search)
+    );
+  }, [clients, search]);
 
   const openCreate = () => {
     setEditing(null);
@@ -422,24 +570,49 @@ export default function AdminPage() {
     }
   };
 
-
-
   // client tab
-  const handleClientSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setClientError(null);
-    setClientGeneratedConfig("");
+  const openClientCreate = () => {
+    setEditingClient(null);
+    setClientDialogOpen(true);
+  };
 
-    if (!clientName.trim()) {
-      setClientError("Client name is required.");
-      return;
+  const openClientEdit = (client: ClientName) => {
+    setEditingClient(client);
+    setClientDialogOpen(true);
+  };
+
+  const handleClientDelete = (client: ClientName) => {
+    setClientToDelete(client);
+    setClientDeleteModalOpen(true);
+  };
+
+  const confirmClientDelete = async () => {
+    if (!clientToDelete) return;
+    const client = clientToDelete;
+
+    try {
+      setClientDeleteId(client.id);
+
+      const res = await fetch(`/api/client-names/delete?id=${client.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : {};
+
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.message || "Failed to delete client name");
+      }
+
+      await loadClients();
+    } catch (err: any) {
+      alert(err?.message || "Delete failed");
+    } finally {
+      setClientDeleteModalOpen(false);
+      setClientToDelete(null);
+      setClientDeleteId(null);
     }
-
-    const body = {
-      name: clientName.trim(),
-    };
-
-    setClientGeneratedConfig(JSON.stringify(body, null, 2));
   };
 
   // ---------- render ----------
@@ -594,47 +767,111 @@ export default function AdminPage() {
       {tab === "client-config" && (
         <>
           <Paper sx={{ p: 3, mb: 3 }}>
-            <form onSubmit={handleClientSubmit}>
-              <Stack spacing={2}>
-                <TextField
-                  label="Client name"
-                  helperText='Example: Acme Corporation'
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  fullWidth
-                  required
-                />
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                mb: 1.5,
+              }}
+            >
+              <Box>
+                <Typography variant="h6">Client Names</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Search using the top search bar by client name.
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <IconButton
+                  aria-label="reload"
+                  onClick={() => loadClients()}
+                  disabled={clientsLoading}
+                >
+                  <RefreshIcon />
+                </IconButton>
+                <Button
+                  startIcon={<AddIcon />}
+                  variant="contained"
+                  onClick={openClientCreate}
+                >
+                  New client
+                </Button>
+              </Box>
+            </Box>
 
-                {clientError && <Alert severity="error">{clientError}</Alert>}
+            {clientsError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {clientsError}
+              </Alert>
+            )}
 
-                <Box>
-                  <Button type="submit" variant="contained">
-                    Generate client payload
-                  </Button>
-                </Box>
-              </Stack>
-            </form>
-          </Paper>
-
-          {clientGeneratedConfig && (
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                Generated Client payload (POST body):
-              </Typography>
+            {clientsLoading ? (
               <Box
-                component="pre"
                 sx={{
-                  m: 0,
-                  fontFamily: "monospace",
-                  fontSize: 13,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-all",
+                  py: 4,
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
                 }}
               >
-                {clientGeneratedConfig}
+                <CircularProgress size={28} />
               </Box>
-            </Paper>
-          )}
+            ) : visibleClients.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No clients found.
+              </Typography>
+            ) : (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Client name</TableCell>
+                    <TableCell>Created</TableCell>
+                    <TableCell>Updated</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {visibleClients.map((client) => (
+                    <TableRow key={client.id}>
+                      <TableCell>{client.name}</TableCell>
+                      <TableCell>
+                        {client.created_at
+                          ? new Date(client.created_at).toLocaleString()
+                          : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {client.updated_at
+                          ? new Date(client.updated_at).toLocaleString()
+                          : "—"}
+                      </TableCell>
+                      <TableCell align="right">
+                        <IconButton
+                          size="small"
+                          onClick={() => openClientEdit(client)}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleClientDelete(client)}
+                          disabled={clientDeleteId === client.id}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </Paper>
+
+          <ClientDialog
+            open={clientDialogOpen}
+            initial={editingClient}
+            onClose={() => setClientDialogOpen(false)}
+            onSaved={loadClients}
+          />
         </>
       )}
       <ConfirmBeforeSubmit
@@ -645,6 +882,19 @@ export default function AdminPage() {
         message={
           flowToDelete
             ? `Are you sure you want to permanently delete:\n\n${flowToDelete.flow_key}\n\nThis action cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+      />
+
+      <ConfirmBeforeSubmit
+        open={clientDeleteModalOpen}
+        onCancel={() => setClientDeleteModalOpen(false)}
+        onConfirm={confirmClientDelete}
+        title="Delete Client Name"
+        message={
+          clientToDelete
+            ? `Are you sure you want to permanently delete client:\n\n${clientToDelete.name}\n\nThis action cannot be undone.`
             : ""
         }
         confirmLabel="Delete"
