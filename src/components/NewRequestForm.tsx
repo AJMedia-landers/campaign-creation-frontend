@@ -204,7 +204,7 @@ export default function NewRequestForm({
       try {
         setClientLoading(true);
         setClientErr(null);
-        const res = await fetch("/api/client-names");
+        const res = await fetch("/api/client-names/get");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const payload = await res.json();
         const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];

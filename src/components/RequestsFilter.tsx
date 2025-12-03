@@ -76,7 +76,7 @@ export default function RequestsFilter({ value, onChange, onClear }: Props) {
       try {
         const [reqRes, clientRes, countryRes] = await Promise.all([
           fetch("/api/requesters"),
-          fetch("/api/client-names"),
+          fetch("/api/client-names/get"),
           fetch("/api/country-timezones"),
         ]);
 
