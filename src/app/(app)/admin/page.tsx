@@ -33,7 +33,7 @@ import { useRouter } from "next/navigation";
 import { usePageSearch } from "@/lib/PageSearchContext";
 import ConfirmBeforeSubmit from "@/components/ComfirmModal";
 
-const ADMIN_EMAILS = ["uliana.sedko@ajmedia.io", "ivan.plametiuk@ajmedia.io"];
+const ADMIN_EMAILS = ["uliana.sedko@ajmedia.io", "ivan.plametiuk@ajmedia.io", "janessa.pandiyan@ajmedia.io"];
 
 type CurrentUser = {
   email?: string;
