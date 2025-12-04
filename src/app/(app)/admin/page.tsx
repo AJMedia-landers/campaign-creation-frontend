@@ -33,10 +33,9 @@ import { useRouter } from "next/navigation";
 import { usePageSearch } from "@/lib/PageSearchContext";
 import ConfirmBeforeSubmit from "@/components/ComfirmModal";
 
-const ADMIN_EMAILS = ["uliana.sedko@ajmedia.io", "ivan.plametiuk@ajmedia.io", "janessa.pandiyan@ajmedia.io"];
-
 type CurrentUser = {
   email?: string;
+  role?: string;
 };
 
 type FlowConfig = {
@@ -401,10 +400,9 @@ export default function AdminPage() {
         if (!res.ok) throw new Error("unauthorized");
 
         const json = await res.json();
-        const email: string =
-          json?.data?.user?.email?.toLowerCase?.() ?? "";
+        const role: string = json?.data?.user?.role ?? "";
 
-        const isAdmin = ADMIN_EMAILS.includes(email);
+        const isAdmin = role === "admin" || role === "super-admin";
 
         if (!cancelled) {
           if (!isAdmin) {
@@ -412,7 +410,7 @@ export default function AdminPage() {
             router.replace("/");
             return;
           }
-          setUser({ email });
+          setUser({ email: json?.data?.user?.email, role });
         }
       } catch {
         if (!cancelled) {
