@@ -14,12 +14,20 @@ import {
   IconButton,
   Tooltip,
   TablePagination,
+  Alert,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  MenuItem,
+  TextField,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import ArrowDropUpIcon from "@mui/icons-material/ArrowDropUp";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
-import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
-import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import StopIcon from "@mui/icons-material/Stop";
 
 import ColumnsMenu from "@/components/ColumnsMenu";
 import RequestsFilter, {
@@ -115,6 +123,14 @@ export default function RevcontentApprovedPage() {
 
   const [campOverlayOpen, setCampOverlayOpen] = React.useState(false);
   const [campForOverlay, setCampForOverlay] = React.useState<any | null>(null);
+  const [startDialogOpen, setStartDialogOpen] = React.useState(false);
+  const [startDialogRow, setStartDialogRow] = React.useState<any | null>(null);
+  const [startHour, setStartHour] = React.useState<number | "">("");
+  const [endHour, setEndHour] = React.useState<number | "">("");
+  const [startDialogError, setStartDialogError] = React.useState<string | null>(null);
+  const [startDialogSaving, setStartDialogSaving] = React.useState(false);
+
+  const HOURS = React.useMemo(() => Array.from({ length: 25 }, (_, i) => i), []);
 
   // ---- load data with backend pagination ----
   const load = React.useCallback(async () => {
@@ -440,15 +456,88 @@ export default function RevcontentApprovedPage() {
   const dir = sort?.dir ?? "asc";
 
   // preparation for ON/OFF toggle
-  const handleToggleCampaign = React.useCallback(
-    (row: any, nextState: "on" | "off") => {
-      console.log("TODO toggle RevContent campaign", {
-        campaign_id: row?.campaign_id,
-        nextState,
-      });
-    },
-    []
-  );
+  const openStartDialog = (row: any) => {
+    setStartDialogRow(row);
+    setStartDialogError(null);
+
+    const rowStart = typeof row?.hours_start === "number" ? row.hours_start : 9;
+    const rowEnd = typeof row?.hours_end === "number" ? row.hours_end : 17;
+
+    setStartHour(rowStart);
+    setEndHour(rowEnd);
+    setStartDialogOpen(true);
+  };
+
+  const closeStartDialog = () => {
+    if (startDialogSaving) return;
+    setStartDialogOpen(false);
+    setStartDialogRow(null);
+    setStartDialogError(null);
+  };
+
+  const handleConfirmStart = async () => {
+    if (startHour === "" || endHour === "") {
+      setStartDialogError("Please choose both start and end hours.");
+      return;
+    }
+    if (startHour >= endHour) {
+      setStartDialogError("End hour must be greater than start hour.");
+      return;
+    }
+    if (!startDialogRow?.id) {
+      setStartDialogError("Missing campaign id.");
+      return;
+    }
+
+    try {
+      setStartDialogSaving(true);
+      const res = await fetch(
+        `/api/campaigns/revcontent/start?id=${startDialogRow.id}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            hours_start: startHour,
+            hours_end: endHour,
+          }),
+        }
+      );
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.message || "Failed to schedule campaign.");
+      }
+
+      setStartDialogOpen(false);
+      setStartDialogRow(null);
+      await load();
+    } catch (err: any) {
+      setStartDialogError(err?.message || "Unknown error.");
+    } finally {
+      setStartDialogSaving(false);
+    }
+  };
+
+  const handleStopCampaign = async (row: any) => {
+    if (!row?.id) return;
+    try {
+      const res = await fetch(
+        `/api/campaigns/revcontent/stop?id=${row.id}`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.message || "Failed to stop campaign.");
+      }
+      await load();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   if (loading && rows.length === 0) {
     return (
@@ -550,6 +639,18 @@ export default function RevcontentApprovedPage() {
                   },
                 }}
               >
+                <TableCell
+                  key="is_active"
+                  sx={{ minWidth: 40, width: 40, maxWidth: 40 }}
+                >
+                </TableCell>
+                <TableCell
+                  key="actions"
+                  sx={{ minWidth: 90, width: 90, maxWidth: 90 }}
+                >
+                  Actions
+                </TableCell>
+
                 {visibleCols.map((key) => {
                   const isSortable =
                     key === "campaign_name" || (dateKey && key === dateKey);
@@ -618,14 +719,6 @@ export default function RevcontentApprovedPage() {
                     </TableCell>
                   );
                 })}
-
-                {/* actions column for ON/OFF */}
-                <TableCell
-                  key="actions"
-                  sx={{ minWidth: 120, width: 120, maxWidth: 140 }}
-                >
-                  Actions
-                </TableCell>
               </TableRow>
             </TableHead>
 
@@ -645,6 +738,56 @@ export default function RevcontentApprovedPage() {
                     },
                   }}
                 >
+                  <TableCell
+                    key="is_active"
+                    sx={{ minWidth: 40, width: 40, maxWidth: 40 }}
+                  >
+                    <Box
+                      sx={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        bgcolor: row.is_active ? "green" : "red",
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell
+                    key="actions"
+                    sx={{ minWidth: 90, width: 90, maxWidth: 90 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Stack
+                      direction="row"
+                      spacing={0.5}
+                      alignItems="center"
+                      justifyContent="flex-start"
+                    >
+                      <Tooltip
+                        title={
+                          row.is_active
+                            ? "Stop campaign"
+                            : "Schedule campaign start"
+                        }
+                      >
+                        <span>
+                          <IconButton
+                            size="small"
+                            onClick={() =>
+                              row.is_active
+                                ? handleStopCampaign(row)
+                                : openStartDialog(row)
+                            }
+                          >
+                            {row.is_active ? (
+                              <StopIcon fontSize="small" />
+                            ) : (
+                              <PlayArrowIcon fontSize="small" />
+                            )}
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Stack>
+                  </TableCell>
                   {visibleCols.map((key) => {
                     const raw = row?.[key];
                     const text =
@@ -665,46 +808,6 @@ export default function RevcontentApprovedPage() {
                       </TableCell>
                     );
                   })}
-
-                  <TableCell
-                    key="actions"
-                    sx={{ minWidth: 120, width: 120, maxWidth: 140 }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Stack
-                      direction="row"
-                      spacing={0.5}
-                      alignItems="center"
-                      justifyContent="flex-start"
-                    >
-                      <Tooltip title="Turn ON campaign">
-                        <span>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleCampaign(row, "on");
-                            }}
-                          >
-                            <PlayCircleOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                      <Tooltip title="Turn OFF campaign">
-                        <span>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleCampaign(row, "off");
-                            }}
-                          >
-                            <PauseCircleOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                    </Stack>
-                  </TableCell>
                 </TableRow>
               ))}
 
@@ -736,6 +839,76 @@ export default function RevcontentApprovedPage() {
           sx={{ mt: 1 }}
         />
       </Box>
+
+      <Dialog
+        open={startDialogOpen}
+        onClose={closeStartDialog}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>
+          Schedule campaign hours
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              Choose start and end hours (0–24) for this RevContent campaign.
+            </Typography>
+
+            <Stack direction="row" spacing={2}>
+              <TextField
+                select
+                label="Start hour"
+                value={startHour}
+                onChange={(e) =>
+                  setStartHour(Number(e.target.value) as number)
+                }
+                fullWidth
+                size="small"
+              >
+                {HOURS.map((h) => (
+                  <MenuItem key={h} value={h}>
+                    {h.toString().padStart(2, "0")}:00
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <TextField
+                select
+                label="End hour"
+                value={endHour}
+                onChange={(e) =>
+                  setEndHour(Number(e.target.value) as number)
+                }
+                fullWidth
+                size="small"
+              >
+                {HOURS.map((h) => (
+                  <MenuItem key={h} value={h}>
+                    {h.toString().padStart(2, "0")}:00
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Stack>
+
+            {startDialogError && (
+              <Alert severity="error">{startDialogError}</Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeStartDialog} disabled={startDialogSaving}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmStart}
+            variant="contained"
+            disabled={startDialogSaving}
+          >
+            {startDialogSaving ? "Saving…" : "Schedule"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <CampaignDetailsOverlay
         open={campOverlayOpen}
