@@ -49,12 +49,15 @@ export default function ColumnsMenu({
   const handleOpen = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget);
   const handleClose = () => setAnchorEl(null);
 
-  // keep visible list valid vs. allColumns
   React.useEffect(() => {
-    const cleaned = visible.filter((k) => allColumns.includes(k));
-    if (cleaned.length !== visible.length) onChange(cleaned.length ? cleaned : defaultVisible);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allColumns]);
+  if (!allColumns.length) return;
+
+  const cleaned = visible.filter((k) => allColumns.includes(k));
+  if (cleaned.length !== visible.length) {
+    onChange(cleaned.length ? cleaned : defaultVisible);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [allColumns]);
 
   // optional persistence (page already persists globally; this is harmless)
   React.useEffect(() => {
