@@ -42,7 +42,6 @@ type FlowConfig = {
   id: number;
   flow_key: string;
   flow_id: string;
-  approved_flow_id: string;
   preferred_tracking_domain: string;
 };
 
@@ -58,7 +57,6 @@ type TabValue = "flow-config" | "client-config";
 type FlowFormState = {
   key: string;
   flowId: string;
-  approvedFlowId: string;
   preferredTrackingDomain: string;
 };
 
@@ -83,7 +81,6 @@ const FlowConfigDialog: React.FC<FlowConfigDialogProps> = React.memo(
     const [form, setForm] = React.useState<FlowFormState>({
       key: "",
       flowId: "",
-      approvedFlowId: "",
       preferredTrackingDomain: DEFAULT_DOMAIN,
     });
     const [saving, setSaving] = React.useState(false);
@@ -96,14 +93,12 @@ const FlowConfigDialog: React.FC<FlowConfigDialogProps> = React.memo(
         setForm({
           key: initial.flow_key,
           flowId: initial.flow_id,
-          approvedFlowId: initial.approved_flow_id,
           preferredTrackingDomain: initial.preferred_tracking_domain,
         });
       } else {
         setForm({
           key: "",
           flowId: "",
-          approvedFlowId: "",
           preferredTrackingDomain: DEFAULT_DOMAIN,
         });
       }
@@ -120,15 +115,14 @@ const FlowConfigDialog: React.FC<FlowConfigDialogProps> = React.memo(
       e.preventDefault();
       setError(null);
 
-      if (!form.key.trim() || !form.flowId.trim() || !form.approvedFlowId.trim()) {
-        setError("Flow key, Flow ID and Approved Flow ID are required.");
+      if (!form.key.trim() || !form.flowId.trim()) {
+        setError("Flow key, Flow ID are required.");
         return;
       }
 
       const payload = {
         flow_key: form.key.trim(),
         flow_id: form.flowId.trim(),
-        approved_flow_id: form.approvedFlowId.trim(),
         preferred_tracking_domain: form.preferredTrackingDomain.trim(),
       };
 
@@ -199,13 +193,6 @@ const FlowConfigDialog: React.FC<FlowConfigDialogProps> = React.memo(
                 label="Flow ID"
                 value={form.flowId}
                 onChange={handleChange("flowId")}
-                fullWidth
-                required
-              />
-              <TextField
-                label="Approved Flow ID"
-                value={form.approvedFlowId}
-                onChange={handleChange("approvedFlowId")}
                 fullWidth
                 required
               />
@@ -503,7 +490,6 @@ export default function AdminPage() {
       const fields = [
         f.flow_key,
         f.flow_id,
-        f.approved_flow_id,
         f.preferred_tracking_domain,
       ];
       return fields.some((v) =>
@@ -717,7 +703,6 @@ export default function AdminPage() {
                     <TableRow>
                       <TableCell>Flow key</TableCell>
                       <TableCell>Flow ID</TableCell>
-                      <TableCell>Approved Flow ID</TableCell>
                       <TableCell>Preferred domain</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
@@ -727,7 +712,6 @@ export default function AdminPage() {
                       <TableRow key={flow.id}>
                         <TableCell>{flow.flow_key}</TableCell>
                         <TableCell>{flow.flow_id}</TableCell>
-                        <TableCell>{flow.approved_flow_id}</TableCell>
                         <TableCell>{flow.preferred_tracking_domain}</TableCell>
                         <TableCell align="right">
                           <IconButton
@@ -824,7 +808,6 @@ export default function AdminPage() {
                   <TableRow>
                     <TableCell>Client name</TableCell>
                     <TableCell>Created</TableCell>
-                    <TableCell>Updated</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -835,11 +818,6 @@ export default function AdminPage() {
                       <TableCell>
                         {client.created_at
                           ? new Date(client.created_at).toLocaleString()
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {client.updated_at
-                          ? new Date(client.updated_at).toLocaleString()
                           : "—"}
                       </TableCell>
                       <TableCell align="right">
