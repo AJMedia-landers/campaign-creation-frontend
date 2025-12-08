@@ -219,6 +219,9 @@ const FlowConfigDialog: React.FC<FlowConfigDialogProps> = React.memo(
                 <MenuItem value="go.toptrendingnewstoday.com">
                   go.toptrendingnewstoday.com
                 </MenuItem>
+                <MenuItem value="go.thesmarttechpost.com">
+                  go.thesmarttechpost.com
+                </MenuItem>
               </TextField>
 
               {error && <Alert severity="error">{error}</Alert>}
