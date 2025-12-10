@@ -13,11 +13,15 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import Tooltip from "@mui/material/Tooltip";
 import SettingsIcon from "@mui/icons-material/Settings";
 import TableChartIcon from '@mui/icons-material/TableChart';
+import EditIcon from '@mui/icons-material/Edit';
+import TableRowsIcon from '@mui/icons-material/TableRows';
 
 
 const BASE_NAV_ITEMS = [
   { label: "New Request Form", href: "/new-request", Icon: AddCircleOutlineIcon },
+  { label: "Update Ads Form", href: "/update-ads-form", Icon: EditIcon },
   { label: "Campaign Set Requests", href: "/", Icon: ChecklistOutlinedIcon },
+  { label: "Update Ads Form", href: "/update-ads-requests", Icon: TableRowsIcon },
   { label: "RevContent", href: "/revcontent-approved", Icon: TableChartIcon },
 ];
 

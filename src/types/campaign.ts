@@ -119,4 +119,5 @@ export type RequestItem = {
   language?: string;
   pacing?: string,
   bid_amount?: number,
+  tracking_link?: string,
 };
