@@ -49,10 +49,11 @@ interface RequestCardProps {
   onOpenCampaign: (row: any) => void;
   visibleCols?: string[];
   languages?: LanguageOption[];
+  showFullData?: boolean;
 }
 
-export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibleCols: externalVisible, languages }: RequestCardProps) {
-  const isUpdateAdsRequest = !req.tracking_link;
+export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibleCols: externalVisible, languages, showFullData }: RequestCardProps) {
+  const isUpdateAdsRequest = !showFullData;
 
   const allColumns = React.useMemo(() => {
     const set = new Set<string>();

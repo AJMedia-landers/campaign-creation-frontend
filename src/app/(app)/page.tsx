@@ -648,6 +648,7 @@ export default function CampaignSetRequestsPage() {
                 onOpenCampaign={openCampaign}
                 visibleCols={visibleCols}
                 languages={languages}
+                showFullData={true}
               />
             ))}
           </Stack>

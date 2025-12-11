@@ -246,6 +246,7 @@ export default function UpdateAdsRequestsPage() {
                 onOpenRequest={() => {}}
                 onOpenCampaign={() => {}}
                 visibleCols={visibleCols}
+                showFullData={false}
               />
             ))}
           </Stack>
