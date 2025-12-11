@@ -309,11 +309,7 @@ export default function NewRequestForm({
         setTzToCountries(t2c);
         setTzOptions(allTzs.length ? allTzs : ["UTC"]);
 
-        if (!form.country && uniqueCountries.length) {
-          const first = uniqueCountries[0];
-          onChange("country", first);
-          onChange("timezone", c2t[first] || "UTC");
-        } else if (form.country && !form.timezone) {
+        if (form.country && !form.timezone) {
           onChange("timezone", c2t[form.country] || "UTC");
         }
       } catch {
@@ -347,13 +343,13 @@ export default function NewRequestForm({
   }, [form.country, tzToCountries]);
 
   useEffect(() => {
-    const countries = tzToCountries[form.timezone] || [];
-    if (countries.length) {
-      if (!countries.includes(form.country)) {
-        onChange("country", countries[0]);
-      }
+    if (!form.country) return;
+
+    const tz = countryToTz[form.country];
+    if (tz && tz !== form.timezone) {
+      onChange("timezone", tz);
     }
-  }, [form.timezone, tzToCountries]);
+  }, [form.country, countryToTz, form.timezone]);
 
   // RevContent languages
   const [languages, setLanguages] = useState<LanguageOption[]>([]);
