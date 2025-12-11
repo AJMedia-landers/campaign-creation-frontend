@@ -94,9 +94,9 @@ export default function NewRequestForm({
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [folderError, setFolderError] = useState<string | null>(null);
   const [driveUrlInput, setDriveUrlInput] = useState("");
-  const [showMoreHeadlines, setShowMoreHeadlines] = useState(false);
   const [widgetTargetFile, setWidgetTargetFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [extraHeadlinesCount, setExtraHeadlinesCount] = useState(0);
 
   // ---- form state
   const [form, setForm] = useState<CampaignRequestInput>({
@@ -122,7 +122,6 @@ export default function NewRequestForm({
     ...(defaultValues || {}),
   });
 
-  console.log("Form state:", defaultValues);
   const [extras, setExtras] = useState<UIExtras>({
     campaign_nickname: "",
     ...(defaultValues || {}),
@@ -1196,18 +1195,9 @@ export default function NewRequestForm({
             required
             fullWidth
           />
-          <Button
-            size="small"
-            variant="text"
-            onClick={() => setShowMoreHeadlines((v) => !v)}
-            sx={{ alignSelf: "flex-start", mb: showMoreHeadlines ? 0 : 1 }}
-          >
-            {showMoreHeadlines ? "Hide extra headlines" : "Add more headlines"}
-          </Button>
-
-          {showMoreHeadlines && (
+          {extraHeadlinesCount > 0 && (
             <>
-              {Array.from({ length: 9 }, (_, i) => i + 2).map((n) => (
+              {Array.from({ length: extraHeadlinesCount }, (_, i) => i + 2).map((n) => (
                 <TextField
                   key={n}
                   label={`Headline${n}`}
@@ -1218,6 +1208,16 @@ export default function NewRequestForm({
               ))}
             </>
           )}
+
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => setExtraHeadlinesCount((c) => Math.min(c + 1, 9))}
+            sx={{ alignSelf: "flex-start", mb: extraHeadlinesCount > 0 ? 0 : 1 }}
+            disabled={extraHeadlinesCount > 8}
+          >
+            Add another headline
+          </Button>
 
           <Button type="submit" variant="contained" disabled={submitting}>
             {submitting ? (editOf ? "Saving…" : "Submitting…") : effectiveSubmitLabel}
