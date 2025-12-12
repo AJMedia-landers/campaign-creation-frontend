@@ -21,6 +21,9 @@ export interface CampaignRequestInput {
   language?: string;
   pacing?: string,
   bid_amount?: number | string,
+  tracking_link?: string | null,
+  is_active?: boolean | null,
+  campaign_name?: string | null
 }
 
 /** UI-only */

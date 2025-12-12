@@ -21,7 +21,7 @@ const BASE_NAV_ITEMS = [
   { label: "New Request Form", href: "/new-request", Icon: AddCircleOutlineIcon },
   { label: "Update Ads Form", href: "/update-ads-form", Icon: EditIcon },
   { label: "Campaign Set Requests", href: "/", Icon: ChecklistOutlinedIcon },
-  { label: "Update Ads Form", href: "/update-ads-requests", Icon: TableRowsIcon },
+  { label: "Update Ads Requests", href: "/update-ads-requests", Icon: TableRowsIcon },
   { label: "RevContent", href: "/revcontent-approved", Icon: TableChartIcon },
 ];
 
