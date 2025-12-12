@@ -18,10 +18,12 @@ type Props = {
   onEdit?: (c: any) => void;
   onDelete?: (c: any) => void;
   languages?: LanguageOption[];
+  onRecreateCampaign?: (c: any) => void;
+  recreateLoading?: boolean;
 };
 
 export default function CampaignDetailsOverlay({
-  open, onClose, data, onEdit, onDelete, languages
+  open, onClose, data, onEdit, onDelete, languages, onRecreateCampaign, recreateLoading,
 }: Props) {
   const [expanded, setExpanded] = React.useState(false);
   React.useEffect(() => { if (!open) setExpanded(false); }, [open]);
@@ -52,10 +54,29 @@ export default function CampaignDetailsOverlay({
       <Typography sx={{ flex: 1 }} variant="h6" noWrap>
         {c?.campaign_name ?? "Campaign details"}
       </Typography>
+      <Stack direction="row" spacing={1}>
+        {onRecreateCampaign && (
+          <Button
+            size="small"
+            variant="contained"
+            color="primary"
+            onClick={() => onRecreateCampaign(c)}
+            disabled={!!recreateLoading}
+          >
+            {recreateLoading ? "Recreating…" : "Recreate campaign"}
+          </Button>
+        )}
+        {/* <Button size="small"
+          variant="contained"
+          color="primary"
+          onClick={() => onEdit?.(c)}
+        >
+          Update campaign
+        </Button> */}
+      </Stack>
 
       <Stack direction="row" spacing={1}>
-        {/* <Button variant="outlined" onClick={() => onEdit?.(c)}>Edit this</Button>
-        <Button color="error" variant="contained" onClick={() => onDelete?.(c)}>Delete</Button> */}
+        {/*<Button color="error" variant="contained" onClick={() => onDelete?.(c)}>Delete</Button> */}
 
         <IconButton onClick={() => setExpanded((v) => !v)}>
           {expanded ? <CloseFullscreenIcon /> : <OpenInFullIcon />}
