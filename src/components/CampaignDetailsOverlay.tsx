@@ -55,7 +55,7 @@ export default function CampaignDetailsOverlay({
         {c?.campaign_name ?? "Campaign details"}
       </Typography>
       <Stack direction="row" spacing={1}>
-        {onRecreateCampaign && (
+        {isErr && onRecreateCampaign && (
           <Button
             size="small"
             variant="contained"

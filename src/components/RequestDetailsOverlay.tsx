@@ -56,7 +56,7 @@ export default function RequestDetailsOverlay({
                 >
                   Recreate campaigns
                 </Button>
-                <Button
+                {/* <Button
                   size="small"
                   variant="outlined"
                   onClick={() => onCreateAdditionalAds?.(data)}
@@ -68,7 +68,7 @@ export default function RequestDetailsOverlay({
                   }
                 >
                   Create additional ads
-                </Button>
+                </Button> */}
               </>
 
             )}
