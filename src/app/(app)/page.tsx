@@ -119,6 +119,9 @@ export default function CampaignSetRequestsPage() {
 
   const [creatingAdditionalAds, setCreatingAdditionalAds] = React.useState(false);
   const [recreating, setRecreating] = React.useState(false);
+  const [recreatingCampaign, setRecreatingCampaign] = React.useState(false);
+  const [campaignEditOpen, setCampaignEditOpen] = React.useState(false);
+  const [campaignEditOf, setCampaignEditOf] = React.useState<any | null>(null);
 
   const mapRequestToFormDefaults = (r: RequestItem) => ({
     campaign_name_post_fix: r.campaign_name_post_fix ?? "",
@@ -150,6 +153,50 @@ export default function CampaignSetRequestsPage() {
     campaign_date: r.campaign_date ?? undefined,
     folder_ids: r.folder_ids ?? [],
   });
+
+  // const mapCampaignToFormDefaults = (c: any) => ({
+  //   campaign_name: c.campaign_name ?? "",
+  //   tracking_link: c.tracking_link ?? "",
+  //   campaign_status: c.campaign_status ?? c.status ?? "",
+  //   is_active: typeof c.is_active === "boolean" ? c.is_active : undefined,
+
+  //   campaign_name_post_fix: c.campaign_name_post_fix ?? "",
+  //   client_name: c.client_name ?? "",
+  //   creatives_folder: c.creatives_folder ?? "",
+  //   creative_sub_folder: c.creative_sub_folder ?? "",
+  //   sub_folder_type: c.sub_folder_type ?? "",
+  //   ad_platform: c.ad_platform ? [c.ad_platform] : Array.isArray(c.ad_platform) ? c.ad_platform : [],
+  //   ad_account_id: c.ad_account_id ?? "",
+  //   brand_name: c.brand_name ?? "",
+
+  //   hours_start: Number(c.hours_start ?? 0),
+  //   hours_end: Number(c.hours_end ?? 0),
+  //   timezone: c.timezone ?? "UTC",
+  //   country: c.country ?? "",
+  //   device: c.device ? [c.device] : Array.isArray(c.device) ? c.device : [],
+
+  //   daily_budget: Number(c.daily_budget ?? 0),
+  //   cta_button: c.cta_button ?? "Learn more",
+  //   creative_description: c.creative_description ?? "",
+
+  //   headline1: c.headline1 ?? "",
+  //   headline2: c.headline2 ?? "",
+  //   headline3: c.headline3 ?? "",
+  //   headline4: c.headline4 ?? "",
+  //   headline5: c.headline5 ?? "",
+  //   headline6: c.headline6 ?? "",
+  //   headline7: c.headline7 ?? "",
+  //   headline8: c.headline8 ?? "",
+  //   headline9: c.headline9 ?? "",
+  //   headline10: c.headline10 ?? "",
+
+  //   campaign_date: c.campaign_date ?? undefined,
+  //   language: c.language ?? "",
+  //   pacing: c.pacing ?? "off",
+  //   bid_amount: Number(c.bid_amount ?? 0),
+  //   folder_ids: c.folder_ids ?? [],
+  //   widget_target: c.widget_target ?? "",
+  // });
 
   React.useEffect(() => {
     let canceled = false;
@@ -295,8 +342,60 @@ export default function CampaignSetRequestsPage() {
       setCreatingAdditionalAds(false);
     }
   };
-  const handleEditCampaign = (c: any) => {
-    console.log("Edit campaign", c);
+
+  const handleRecreateCampaign = async (campaign: any) => {
+    try {
+      setRecreatingCampaign(true);
+      const res = await fetch(
+        `/api/campaigns/recreate?id=${encodeURIComponent(
+          String(campaign.id)
+        )}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+          credentials: "include",
+        }
+      );
+
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        json = {};
+      }
+
+      if (!res.ok || json?.success === false) {
+        console.error("Recreate single campaign failed:", json);
+        setToastMsg(
+          json?.message || "Failed to recreate this campaign."
+        );
+        setToastSeverity("error");
+        setToastOpen(true);
+        return;
+      }
+
+      setToastMsg(json?.message || "Campaign is being recreated.");
+      setToastSeverity("success");
+      setToastOpen(true);
+
+      setCampOverlayOpen(false);
+      await load();
+    } catch (e) {
+      console.error(e);
+      setToastMsg("Unexpected error while recreating this campaign.");
+      setToastSeverity("error");
+      setToastOpen(true);
+    } finally {
+      setRecreatingCampaign(false);
+    }
+  };
+
+  const handleEditCampaign = (campaign: any) => {
+    setCampOverlayOpen(false);
+    setCampaignEditOf(campaign);
+    setCampaignEditOpen(true);
   };
   const handleDeleteCampaign = async (c: any) => {
     console.log("Delete Camp")
@@ -477,15 +576,22 @@ export default function CampaignSetRequestsPage() {
     [allColumns]
   );
 
+
   const [visibleCols, setVisibleCols] = React.useState<string[]>(() => {
     try {
       const raw = localStorage.getItem(GLOBAL_STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
     } catch {}
     return defaultVisible;
   });
-
   React.useEffect(() => {
+    if (!allColumns.length) return;
+  
     setVisibleCols((prev) => {
       const cleaned = prev.filter((k) => allColumns.includes(k));
       return cleaned.length ? cleaned : defaultVisible;
@@ -540,7 +646,7 @@ export default function CampaignSetRequestsPage() {
     return list;
   }, [data, cardSort]);
 
-  console.log(data)
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
        <Snackbar
@@ -641,6 +747,7 @@ export default function CampaignSetRequestsPage() {
                 onOpenCampaign={openCampaign}
                 visibleCols={visibleCols}
                 languages={languages}
+                showFullData={true}
               />
             ))}
           </Stack>
@@ -679,6 +786,8 @@ export default function CampaignSetRequestsPage() {
         onEdit={handleEditCampaign}
         onDelete={handleDeleteCampaign}
         languages={languages}
+        onRecreateCampaign={handleRecreateCampaign}
+        recreateLoading={recreatingCampaign}
       />
 
       <NewRequestDialog open={openNew} onClose={() => setOpenNew(false)} onCreated={load} />
@@ -716,6 +825,59 @@ export default function CampaignSetRequestsPage() {
           )}
         </Box>
       </Dialog>
+      {/* <Dialog
+        open={campaignEditOpen}
+        onClose={() => setCampaignEditOpen(false)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <Box sx={{ p: { xs: 1.5, md: 2 } }}>
+          {campaignEditOf && (
+            <NewRequestForm
+              title="Update Campaign"
+              defaultValues={mapCampaignToFormDefaults(campaignEditOf)}
+              submitLabel="Save campaign"
+              submitUrl={`/api/campaigns/update?id=${campaignEditOf.id}`}
+              submitMethod="PATCH"
+              onSubmitted={(res) => {
+                setCampaignEditOpen(false);
+                const updated: any = res?.data;
+                if (!updated) return;
+
+                const requestId =
+                  updated.request_id ??
+                  campaignEditOf.request_id ??
+                  campaignEditOf.requestId ??
+                  campaignEditOf.requestId;
+
+                setItems((prev) =>
+                  prev.map((r) => {
+                    if (!requestId || String(r.id) !== String(requestId)) return r;
+                    const nextCampaigns = (r.campaigns || []).map((c: any) =>
+                      String(c.id) === String(updated.id) ? { ...c, ...updated } : c
+                    );
+                    return { ...r, campaigns: nextCampaigns };
+                  })
+                );
+
+                setReqForOverlay((prev) => {
+                  if (!prev || !requestId || String(prev.id) !== String(requestId)) return prev;
+                  const nextCampaigns = (prev.campaigns || []).map((c: any) =>
+                    String(c.id) === String(updated.id) ? { ...c, ...updated } : c
+                  );
+                  return { ...prev, campaigns: nextCampaigns };
+                });
+
+                setCampForOverlay((prev: any) =>
+                  prev && String(prev.id) === String(updated.id) ? { ...prev, ...updated } : prev
+                );
+
+                setCampaignEditOf(null);
+              }}
+            />
+          )}
+        </Box>
+      </Dialog> */}
     </Box>
   );
 }

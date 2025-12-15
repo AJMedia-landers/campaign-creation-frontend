@@ -49,11 +49,24 @@ interface RequestCardProps {
   onOpenCampaign: (row: any) => void;
   visibleCols?: string[];
   languages?: LanguageOption[];
+  showFullData?: boolean;
 }
 
-export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibleCols: externalVisible, languages }: RequestCardProps) {
+export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibleCols: externalVisible, languages, showFullData }: RequestCardProps) {
+  const isUpdateAdsRequest = !showFullData;
+
   const allColumns = React.useMemo(() => {
     const set = new Set<string>();
+    if (isUpdateAdsRequest) {
+      return [
+        "platform",
+        "campaign_id",
+        "status",
+        "started_at",
+        "completed_at",
+        "error_message"
+      ];
+    }
     for (const row of req.campaigns ?? []) {
       if (row && typeof row === "object") Object.keys(row).forEach((k) => set.add(k));
     }
@@ -78,7 +91,7 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
     ];
     const rest = [...set].filter((k) => !preferred.includes(k)).sort();
     return [...preferred.filter((k) => set.has(k)), ...rest];
-  }, [req.campaigns]);
+  }, [req.campaigns, isUpdateAdsRequest]);
 
   const storageKey = React.useMemo(() => `req:${req.id}:visibleCols`, [req.id]);
 
@@ -381,6 +394,42 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
       } catch {}
     }
 
+    if (isUpdateAdsRequest) {
+      switch (key) {
+        case "platform":
+          return <Box>{row.platform || "—"}</Box>;
+
+        case "campaign_id":
+          return (
+            <Box sx={{ display:"flex", alignItems:"center", gap:0.5 }}>
+              {row.campaign_id}
+              <IconButton size="small" onClick={(e)=>{ e.stopPropagation(); navigator.clipboard.writeText(row.campaign_id); }}>
+                <ContentCopyIcon fontSize="inherit" />
+              </IconButton>
+            </Box>
+          );
+
+        case "status":
+          return (
+            <Chip
+              size="small"
+              label={row.status}
+              color={campaignStatusColor(row.status)}
+              variant="outlined"
+            />
+          );
+
+        case "started_at":
+          return <Box>{row.started_at ? new Date(row.started_at).toLocaleString() : "—"}</Box>;
+
+        case "completed_at":
+          return <Box>{row.completed_at ? new Date(row.completed_at).toLocaleString() : "—"}</Box>;
+
+        case "error_message":
+          return <Box sx={{ color:"error.main" }}>{row.error_message || "—"}</Box>;
+      }
+    }
+
     const text = raw == null || raw === "" ? "—" : String(raw);
     return (
       <Box sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -444,9 +493,11 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
       <CardHeader
         title={
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" onClick={() => onOpenRequest(req)}
-          sx={{ cursor: "pointer" }}>
+          sx={{ cursor: isUpdateAdsRequest ?  "defult" : "pointer" }}>
             <Typography variant="h6">
-              {buildRequestTitle(req)}
+              {isUpdateAdsRequest
+                ? `Update Ads Request #${req.id} by ${req.first_name}`
+                : buildRequestTitle(req)}
             </Typography>
             {platform && <Chip size="small" label={platform} />}
             {req.status && (
@@ -470,37 +521,39 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
         action={
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             {/* Toggle flag */}
-            <Tooltip title={req.review_flag ? "Flagged for review" : "Mark for review"}>
-              <IconButton
-                size="small"
-                onClick={async (e) => {
-                  e.stopPropagation();
+            {!isUpdateAdsRequest && (
+              <Tooltip title={req.review_flag ? "Flagged for review" : "Mark for review"}>
+                <IconButton
+                  size="small"
+                  onClick={async (e) => {
+                    e.stopPropagation();
 
-                  const next = !req.review_flag;
-                  console.log("Toggling review flag to", next);
+                    const next = !req.review_flag;
+                    console.log("Toggling review flag to", next);
 
-                  try {
-                    await fetch(`/api/campaigns/requests?id=${req.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ review_flag: next }),
-                    });
+                    try {
+                      await fetch(`/api/campaigns/requests?id=${req.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ review_flag: next }),
+                      });
 
-                    req.review_flag = next;
-                    forceUpdate();
-                  } catch (err) {
-                    console.error("Failed to toggle review flag:", err);
-                  }
-                }}
-              >
-                <FlagIcon
-                  sx={{
-                    fontSize: 20,
-                    color: req.review_flag ? "red" : "black",
+                      req.review_flag = next;
+                      forceUpdate();
+                    } catch (err) {
+                      console.error("Failed to toggle review flag:", err);
+                    }
                   }}
-                />
-              </IconButton>
-            </Tooltip>
+                >
+                  <FlagIcon
+                    sx={{
+                      fontSize: 20,
+                      color: req.review_flag ? "red" : "black",
+                    }}
+                  />
+                </IconButton>
+              </Tooltip>
+            )}
             {/* Expand / collapse button */}
             <Tooltip title={expanded ? "Collapse campaigns" : "Expand campaigns"}>
               <IconButton
@@ -683,7 +736,7 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
                   <TableRow
                     key={row.id ?? JSON.stringify(row)}
                     hover
-                    sx={{ cursor: "pointer" }}
+                    sx={{ cursor: isUpdateAdsRequest ?  "defult" : "pointer" }}
                     onClick={() => onOpenCampaign(row)}
                   >
                     {columns.map((key) => (

@@ -162,12 +162,19 @@ export default function CampaignsInlinePage() {
   const [visibleCols, setVisibleCols] = React.useState<string[]>(() => {
     try {
       const raw = localStorage.getItem(GLOBAL_STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
     } catch {}
     return defaultVisible;
   });
 
   React.useEffect(() => {
+    if (!allColumns.length) return;
+
     setVisibleCols((prev) => {
       const cleaned = prev.filter((k) => allColumns.includes(k));
       return cleaned.length ? cleaned : defaultVisible;

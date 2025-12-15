@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ClipboardEvent } from "react";
+import type { ChangeEvent, ClipboardEvent } from "react";
 import {
   Box,
   Button,
@@ -94,9 +94,9 @@ export default function NewRequestForm({
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [folderError, setFolderError] = useState<string | null>(null);
   const [driveUrlInput, setDriveUrlInput] = useState("");
-  const [showMoreHeadlines, setShowMoreHeadlines] = useState(false);
   const [widgetTargetFile, setWidgetTargetFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [extraHeadlinesCount, setExtraHeadlinesCount] = useState(0);
 
   // ---- form state
   const [form, setForm] = useState<CampaignRequestInput>({
@@ -110,19 +110,18 @@ export default function NewRequestForm({
     timezone: "UTC",
     country: "",
     device: [],
-    hours_start: 0,
-    hours_end: 0,
-    daily_budget: 0,
+    hours_start: "",
+    hours_end: "",
+    daily_budget: "",
     cta_button: "Learn more",
     creative_description: "",
     headline1: "",
     language: "",
     pacing: "off",
-    bid_amount: 0,
+    bid_amount: "",
     ...(defaultValues || {}),
   });
 
-  console.log("Form state:", defaultValues);
   const [extras, setExtras] = useState<UIExtras>({
     campaign_nickname: "",
     ...(defaultValues || {}),
@@ -138,6 +137,7 @@ export default function NewRequestForm({
     setForm((prev) => ({ ...prev, [k]: v }));
     setErrors((prev) => ({ ...prev, [k]: "" }));
   };
+
   const onExtra = (k: keyof UIExtras, v: any) => {
     setExtras((prev) => ({ ...prev, [k]: v }));
     setErrors((prev) => ({ ...prev, [k]: "" }));
@@ -172,6 +172,26 @@ export default function NewRequestForm({
     }
   };
 
+  const handleHoursChange =
+    (key: "hours_start" | "hours_end") =>
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const value = Number(e.target.value);
+
+      // update form value
+      setForm((prev) => ({ ...prev, [key]: value }));
+
+      // set / clear error
+      setErrors((prev) => ({
+        ...prev,
+        [key]:
+          Number.isNaN(value) || e.target.value === ""
+            ? ""
+            : value > 24
+            ? "Value must be less than or equal to 24"
+            : "",
+      }));
+  };
+
   // Client names
   const [clientNames, setClientNames] = useState<string[]>([]);
   const [clientLoading, setClientLoading] = useState(false);
@@ -183,7 +203,7 @@ export default function NewRequestForm({
       try {
         setClientLoading(true);
         setClientErr(null);
-        const res = await fetch("/api/client-names");
+        const res = await fetch("/api/client-names/get");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const payload = await res.json();
         const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
@@ -289,11 +309,7 @@ export default function NewRequestForm({
         setTzToCountries(t2c);
         setTzOptions(allTzs.length ? allTzs : ["UTC"]);
 
-        if (!form.country && uniqueCountries.length) {
-          const first = uniqueCountries[0];
-          onChange("country", first);
-          onChange("timezone", c2t[first] || "UTC");
-        } else if (form.country && !form.timezone) {
+        if (form.country && !form.timezone) {
           onChange("timezone", c2t[form.country] || "UTC");
         }
       } catch {
@@ -327,13 +343,13 @@ export default function NewRequestForm({
   }, [form.country, tzToCountries]);
 
   useEffect(() => {
-    const countries = tzToCountries[form.timezone] || [];
-    if (countries.length) {
-      if (!countries.includes(form.country)) {
-        onChange("country", countries[0]);
-      }
+    if (!form.country) return;
+
+    const tz = countryToTz[form.country];
+    if (tz && tz !== form.timezone) {
+      onChange("timezone", tz);
     }
-  }, [form.timezone, tzToCountries]);
+  }, [form.country, countryToTz, form.timezone]);
 
   // RevContent languages
   const [languages, setLanguages] = useState<LanguageOption[]>([]);
@@ -494,7 +510,7 @@ export default function NewRequestForm({
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.client_name?.trim()) e.client_name = "Required";
-    if (!form.campaign_name_post_fix?.trim()) e.campaign_name_post_fix = "Required";
+    // if (!form.campaign_name_post_fix?.trim()) e.campaign_name_post_fix = "Required";
     if (!form.creatives_folder?.trim()) e.creatives_folder = "Required";
     if (!form.ad_platform?.length) e.ad_platform = "Select at least one platform";
     if (form.ad_platform.includes("Outbrain") && !form.ad_account_id)
@@ -601,11 +617,11 @@ export default function NewRequestForm({
       setToastSeverity("success");
       setToastOpen(true);
       onSubmitted?.(json);
-      // if (!editOf) {
-      //   setTimeout(() => {
-      //     router.replace("/");
-      //   }, 3000);
-      // }
+      if (!editOf) {
+        setTimeout(() => {
+          router.replace("/");
+        }, 3000);
+      }
     } catch (err: any) {
       setResult({ ok: false, msg: err.message || "Request failed" });
     } finally {
@@ -688,12 +704,11 @@ export default function NewRequestForm({
               onBlur={() =>
                 setErrors((p) => ({
                   ...p,
-                  campaign_name_post_fix: form.campaign_name_post_fix?.trim() ? "" : "Required",
+                  // campaign_name_post_fix: form.campaign_name_post_fix?.trim() ? "" : "Required",
                 }))
               }
               error={!!errors.campaign_name_post_fix}
               helperText={errors.campaign_name_post_fix}
-              required
               fullWidth
             />
           </Box>
@@ -820,7 +835,7 @@ export default function NewRequestForm({
 
           {/* Hours */}
           <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } }}>
-            <TextField
+          <TextField
               sx={{
                 "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
                   { WebkitAppearance: "none", margin: 0 },
@@ -829,16 +844,24 @@ export default function NewRequestForm({
               label="HoursStart"
               type="number"
               value={form.hours_start ?? 0}
-              onChange={(e) => onChange("hours_start", Number(e.target.value))}
+              onChange={handleHoursChange("hours_start")}
               required
+              error={!!errors.hours_start}
+              helperText={errors.hours_start}
               InputProps={{
-                inputProps: { min: 0, max: 23 },
+                inputProps: { min: 0, max: 24 },
                 endAdornment: (
                   <Stack direction="row" spacing={0.5}>
-                    <IconButton size="small" onClick={() => stepNum("hours_start", -1, { min: 0 })}>
+                    <IconButton
+                      size="small"
+                      onClick={() => stepNum("hours_start", -1, { min: 0 })}
+                    >
                       <RemoveIcon />
                     </IconButton>
-                    <IconButton size="small" onClick={() => stepNum("hours_start", +1, { max: 23 })}>
+                    <IconButton
+                      size="small"
+                      onClick={() => stepNum("hours_start", +1, { max: 24 })}
+                    >
                       <AddIcon />
                     </IconButton>
                   </Stack>
@@ -855,16 +878,24 @@ export default function NewRequestForm({
               label="HoursEnd"
               type="number"
               value={form.hours_end ?? 0}
-              onChange={(e) => onChange("hours_end", Number(e.target.value))}
+              onChange={handleHoursChange("hours_end")}
               required
+              error={!!errors.hours_end}
+              helperText={errors.hours_end}
               InputProps={{
-                inputProps: { min: 0, max: 23 },
+                inputProps: { min: 0, max: 24 },
                 endAdornment: (
                   <Stack direction="row" spacing={0.5}>
-                    <IconButton size="small" onClick={() => stepNum("hours_end", -1, { min: 0 })}>
+                    <IconButton
+                      size="small"
+                      onClick={() => stepNum("hours_end", -1, { min: 0 })}
+                    >
                       <RemoveIcon />
                     </IconButton>
-                    <IconButton size="small" onClick={() => stepNum("hours_end", +1, { max: 23 })}>
+                    <IconButton
+                      size="small"
+                      onClick={() => stepNum("hours_end", +1, { max: 24 })}
+                    >
                       <AddIcon />
                     </IconButton>
                   </Stack>
@@ -922,7 +953,11 @@ export default function NewRequestForm({
             label="DailyBudget"
             type="number"
             value={form.daily_budget ?? 0}
-            onChange={(e) => onChange("daily_budget", Number(e.target.value))}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const normalized = raw.replace(/^0+(?=\d)/, "");
+              onChange("daily_budget", Number(normalized));
+            }}
             required
             InputProps={{
               inputProps: { min: 0, step: 1 },
@@ -1044,7 +1079,11 @@ export default function NewRequestForm({
                   label="BidAmount (RevContent)"
                   type="number"
                   value={form.bid_amount ?? 0}
-                  onChange={(e) => onChange("bid_amount", Number(e.target.value))}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const normalized = raw.replace(/^0+(?=\d)/, "");
+                    onChange("bid_amount", Number(normalized));
+                  }}
                   required
                   error={!!errors.bid_amount}
                   helperText={errors.bid_amount}
@@ -1152,18 +1191,9 @@ export default function NewRequestForm({
             required
             fullWidth
           />
-          <Button
-            size="small"
-            variant="text"
-            onClick={() => setShowMoreHeadlines((v) => !v)}
-            sx={{ alignSelf: "flex-start", mb: showMoreHeadlines ? 0 : 1 }}
-          >
-            {showMoreHeadlines ? "Hide extra headlines" : "Add more headlines"}
-          </Button>
-
-          {showMoreHeadlines && (
+          {extraHeadlinesCount > 0 && (
             <>
-              {Array.from({ length: 9 }, (_, i) => i + 2).map((n) => (
+              {Array.from({ length: extraHeadlinesCount }, (_, i) => i + 2).map((n) => (
                 <TextField
                   key={n}
                   label={`Headline${n}`}
@@ -1174,6 +1204,16 @@ export default function NewRequestForm({
               ))}
             </>
           )}
+
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => setExtraHeadlinesCount((c) => Math.min(c + 1, 9))}
+            sx={{ alignSelf: "flex-start", mb: extraHeadlinesCount > 0 ? 0 : 1 }}
+            disabled={extraHeadlinesCount > 8}
+          >
+            Add another headline
+          </Button>
 
           <Button type="submit" variant="contained" disabled={submitting}>
             {submitting ? (editOf ? "Saving…" : "Submitting…") : effectiveSubmitLabel}
