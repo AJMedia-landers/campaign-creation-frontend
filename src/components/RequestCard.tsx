@@ -532,11 +532,16 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
                     console.log("Toggling review flag to", next);
 
                     try {
-                      await fetch(`/api/campaigns/requests?id=${req.id}`, {
+                      const formData = new FormData();
+                      formData.append("data", JSON.stringify({ review_flag: next }));
+
+                      const res = await fetch(`/api/campaigns/requests?id=${req.id}`, {
                         method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ review_flag: next }),
+                        body: formData,
+                        credentials: "include",
                       });
+
+                      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
                       req.review_flag = next;
                       forceUpdate();
