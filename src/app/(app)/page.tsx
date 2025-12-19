@@ -120,8 +120,8 @@ export default function CampaignSetRequestsPage() {
   const [creatingAdditionalAds, setCreatingAdditionalAds] = React.useState(false);
   const [recreating, setRecreating] = React.useState(false);
   const [recreatingCampaign, setRecreatingCampaign] = React.useState(false);
-  const [campaignEditOpen, setCampaignEditOpen] = React.useState(false);
-  const [campaignEditOf, setCampaignEditOf] = React.useState<any | null>(null);
+  const [editCampaignOpen, setEditCampaignOpen] = React.useState(false);
+  const [editCampaignOf, setEditCampaignOf] = React.useState<any | null>(null);
 
   const mapRequestToFormDefaults = (r: RequestItem) => ({
     campaign_name_post_fix: r.campaign_name_post_fix ?? "",
@@ -154,49 +154,43 @@ export default function CampaignSetRequestsPage() {
     folder_ids: r.folder_ids ?? [],
   });
 
-  // const mapCampaignToFormDefaults = (c: any) => ({
-  //   campaign_name: c.campaign_name ?? "",
-  //   tracking_link: c.tracking_link ?? "",
-  //   campaign_status: c.campaign_status ?? c.status ?? "",
-  //   is_active: typeof c.is_active === "boolean" ? c.is_active : undefined,
-
-  //   campaign_name_post_fix: c.campaign_name_post_fix ?? "",
-  //   client_name: c.client_name ?? "",
-  //   creatives_folder: c.creatives_folder ?? "",
-  //   creative_sub_folder: c.creative_sub_folder ?? "",
-  //   sub_folder_type: c.sub_folder_type ?? "",
-  //   ad_platform: c.ad_platform ? [c.ad_platform] : Array.isArray(c.ad_platform) ? c.ad_platform : [],
-  //   ad_account_id: c.ad_account_id ?? "",
-  //   brand_name: c.brand_name ?? "",
-
-  //   hours_start: Number(c.hours_start ?? 0),
-  //   hours_end: Number(c.hours_end ?? 0),
-  //   timezone: c.timezone ?? "UTC",
-  //   country: c.country ?? "",
-  //   device: c.device ? [c.device] : Array.isArray(c.device) ? c.device : [],
-
-  //   daily_budget: Number(c.daily_budget ?? 0),
-  //   cta_button: c.cta_button ?? "Learn more",
-  //   creative_description: c.creative_description ?? "",
-
-  //   headline1: c.headline1 ?? "",
-  //   headline2: c.headline2 ?? "",
-  //   headline3: c.headline3 ?? "",
-  //   headline4: c.headline4 ?? "",
-  //   headline5: c.headline5 ?? "",
-  //   headline6: c.headline6 ?? "",
-  //   headline7: c.headline7 ?? "",
-  //   headline8: c.headline8 ?? "",
-  //   headline9: c.headline9 ?? "",
-  //   headline10: c.headline10 ?? "",
-
-  //   campaign_date: c.campaign_date ?? undefined,
-  //   language: c.language ?? "",
-  //   pacing: c.pacing ?? "off",
-  //   bid_amount: Number(c.bid_amount ?? 0),
-  //   folder_ids: c.folder_ids ?? [],
-  //   widget_target: c.widget_target ?? "",
-  // });
+  const mapCampaignToFormDefaults = (c: any) => ({
+    campaign_name: c?.campaign_name ?? "",
+    tracking_link: c?.tracking_link ?? "",
+    campaign_status: c?.campaign_status ?? "",
+    is_active: c?.is_active ?? true,
+    campaign_name_post_fix: c?.campaign_name_post_fix ?? "",
+    campaign_date: c?.campaign_date ?? undefined,
+    client_name: c?.client_name ?? "",
+    creatives_folder: c?.creatives_folder ?? "",
+    creative_sub_folder: c?.creative_sub_folder ?? "",
+    sub_folder_type: c?.sub_folder_type ?? "",
+    ad_platform: Array.isArray(c?.ad_platform) ? c.ad_platform : (c?.ad_platform ? [c.ad_platform] : []),
+    ad_account_id: c?.ad_account_id ?? "",
+    brand_name: c?.brand_name ?? "",
+    timezone: c?.timezone ?? "UTC",
+    country: c?.country ?? "",
+    device: Array.isArray(c?.device) ? c.device : (c?.device ? [c.device] : []),
+    hours_start: Number(c?.hours_start ?? 0),
+    hours_end: Number(c?.hours_end ?? 0),
+    daily_budget: Number(c?.daily_budget ?? 0),
+    cta_button: c?.cta_button ?? "Learn more",
+    creative_description: c?.creative_description ?? "",
+    language: c?.language ?? "",
+    pacing: c?.pacing ?? "off",
+    bid_amount: Number(c?.bid_amount ?? 0),
+    headline1: c?.headline1 ?? "",
+    headline2: c?.headline2 ?? "",
+    headline3: c?.headline3 ?? "",
+    headline4: c?.headline4 ?? "",
+    headline5: c?.headline5 ?? "",
+    headline6: c?.headline6 ?? "",
+    headline7: c?.headline7 ?? "",
+    headline8: c?.headline8 ?? "",
+    headline9: c?.headline9 ?? "",
+    headline10: c?.headline10 ?? "",
+    widget_target: c?.widget_target ?? "",
+  });
 
   React.useEffect(() => {
     let canceled = false;
@@ -393,9 +387,8 @@ export default function CampaignSetRequestsPage() {
   };
 
   const handleEditCampaign = (campaign: any) => {
-    setCampOverlayOpen(false);
-    setCampaignEditOf(campaign);
-    setCampaignEditOpen(true);
+    setEditCampaignOf(campaign);
+    setEditCampaignOpen(true);
   };
   const handleDeleteCampaign = async (c: any) => {
     console.log("Delete Camp")
@@ -825,59 +818,46 @@ export default function CampaignSetRequestsPage() {
           )}
         </Box>
       </Dialog>
-      {/* <Dialog
-        open={campaignEditOpen}
-        onClose={() => setCampaignEditOpen(false)}
+
+      <Dialog
+        open={editCampaignOpen}
+        onClose={() => setEditCampaignOpen(false)}
         fullWidth
         maxWidth="lg"
       >
         <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-          {campaignEditOf && (
+          {editCampaignOf && (
             <NewRequestForm
               title="Update Campaign"
-              defaultValues={mapCampaignToFormDefaults(campaignEditOf)}
+              campaignEditOf={editCampaignOf.id}
+              defaultValues={mapCampaignToFormDefaults(editCampaignOf)}
               submitLabel="Save campaign"
-              submitUrl={`/api/campaigns/update?id=${campaignEditOf.id}`}
-              submitMethod="PATCH"
-              onSubmitted={(res) => {
-                setCampaignEditOpen(false);
-                const updated: any = res?.data;
-                if (!updated) return;
+              onSubmitted={(res: any) => {
+                setEditCampaignOpen(false);
 
-                const requestId =
-                  updated.request_id ??
-                  campaignEditOf.request_id ??
-                  campaignEditOf.requestId ??
-                  campaignEditOf.requestId;
+                const updated = res?.data ?? res?.data?.data ?? res?.data?.campaign ?? res?.data;
+                if (!updated?.id) return;
 
+                // update list in-place
                 setItems((prev) =>
-                  prev.map((r) => {
-                    if (!requestId || String(r.id) !== String(requestId)) return r;
-                    const nextCampaigns = (r.campaigns || []).map((c: any) =>
+                  prev.map((req) => ({
+                    ...req,
+                    campaigns: (req.campaigns ?? []).map((c: any) =>
                       String(c.id) === String(updated.id) ? { ...c, ...updated } : c
-                    );
-                    return { ...r, campaigns: nextCampaigns };
-                  })
+                    ),
+                  }))
                 );
-
-                setReqForOverlay((prev) => {
-                  if (!prev || !requestId || String(prev.id) !== String(requestId)) return prev;
-                  const nextCampaigns = (prev.campaigns || []).map((c: any) =>
-                    String(c.id) === String(updated.id) ? { ...c, ...updated } : c
-                  );
-                  return { ...prev, campaigns: nextCampaigns };
-                });
 
                 setCampForOverlay((prev: any) =>
                   prev && String(prev.id) === String(updated.id) ? { ...prev, ...updated } : prev
                 );
 
-                setCampaignEditOf(null);
+                setEditCampaignOf(null);
               }}
             />
           )}
         </Box>
-      </Dialog> */}
+      </Dialog>
     </Box>
   );
 }

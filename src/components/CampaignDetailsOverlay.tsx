@@ -66,13 +66,16 @@ export default function CampaignDetailsOverlay({
             {recreateLoading ? "Recreating…" : "Recreate campaign"}
           </Button>
         )}
-        {/* <Button size="small"
-          variant="contained"
-          color="primary"
-          onClick={() => onEdit?.(c)}
-        >
-          Update campaign
-        </Button> */}
+        {onEdit && (
+          <Button
+            size="small"
+            variant="contained"
+            color="primary"
+            onClick={() => onEdit(c)}
+          >
+            Update campaign
+          </Button>
+        )}
       </Stack>
 
       <Stack direction="row" spacing={1}>
