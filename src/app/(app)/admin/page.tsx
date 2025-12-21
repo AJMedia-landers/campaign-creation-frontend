@@ -24,6 +24,11 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Checkbox,
+  FormGroup,
+  FormControlLabel,
+  Divider,
+  Chip,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -74,79 +79,198 @@ type ClientDialogProps = {
   onSaved: () => Promise<void>;
 };
 
+const PLATFORM_OPTIONS = [
+  { value: "taboola", label: "Taboola" },
+  { value: "outbrain", label: "Outbrain" },
+  { value: "revcontent", label: "RevContent" },
+] as const;
+
+const DEVICE_OPTIONS = [
+  { value: "desktop", label: "Desktop" },
+  { value: "mobile", label: "Mobile" },
+  { value: "tablet", label: "Tablet" },
+] as const;
+
+function normalizeToken(s: string) {
+  return (s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+
 const DEFAULT_DOMAIN = "go.toptrendingnewstoday.com";
+
+function generateFlowKeysFromBase(baseKey: string, platforms: string[], devices: string[]) {
+  const base = normalizeToken(baseKey);
+  const ps = (platforms ?? []).map(normalizeToken).filter(Boolean);
+  const ds = (devices ?? []).map(normalizeToken).filter(Boolean);
+
+  if (!base || ps.length === 0 || ds.length === 0) return [];
+  return ps.flatMap((p) => ds.map((d) => `${base}-${d}-${p}`));
+}
 
 const FlowConfigDialog: React.FC<FlowConfigDialogProps> = React.memo(
   ({ open, initial, onClose, onSaved }) => {
-    const [form, setForm] = React.useState<FlowFormState>({
-      key: "",
-      flowId: "",
-      preferredTrackingDomain: DEFAULT_DOMAIN,
-    });
-    const [saving, setSaving] = React.useState(false);
-    const [error, setError] = React.useState<string | null>(null);
+  const [form, setForm] = React.useState<FlowFormState>({
+    key: "",
+    flowId: "",
+    preferredTrackingDomain: DEFAULT_DOMAIN,
+  });
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [mode, setMode] = React.useState<"bulk" | "single">("bulk");
 
-    React.useEffect(() => {
-      if (!open) return;
+  const [bulkPlatforms, setBulkPlatforms] = React.useState<string[]>([]);
+  const [bulkDevices, setBulkDevices] = React.useState<string[]>([]);
 
-      if (initial) {
-        setForm({
-          key: initial.flow_key,
-          flowId: initial.flow_id,
-          preferredTrackingDomain: initial.preferred_tracking_domain,
-        });
+  React.useEffect(() => {
+    if (!open) return;
+
+    if (initial) {
+      setForm({
+        key: initial.flow_key,
+        flowId: initial.flow_id,
+        preferredTrackingDomain: initial.preferred_tracking_domain,
+      });
+      setMode("single");
+    } else {
+      setForm({
+        key: "",
+        flowId: "",
+        preferredTrackingDomain: DEFAULT_DOMAIN,
+      });
+      setMode("bulk");
+      setBulkPlatforms([]);
+      setBulkDevices([]);
+    }
+    setError(null);
+  }, [open, initial]);
+
+  const generatedKeys = React.useMemo(() => {
+    if (initial) return [];
+    if (mode !== "bulk") return [];
+    return generateFlowKeysFromBase(form.key, bulkPlatforms, bulkDevices);
+  }, [initial, mode, form.key, bulkPlatforms, bulkDevices]);
+
+  const toggleBulk =
+    (field: "platforms" | "devices", value: string) =>
+    (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
+      if (field === "platforms") {
+        setBulkPlatforms((prev) => (checked ? [...prev, value] : prev.filter((v) => v !== value)));
       } else {
-        setForm({
-          key: "",
-          flowId: "",
-          preferredTrackingDomain: DEFAULT_DOMAIN,
-        });
+        setBulkDevices((prev) => (checked ? [...prev, value] : prev.filter((v) => v !== value)));
       }
-      setError(null);
-    }, [open, initial]);
+    };
 
-    const handleChange =
-      (field: keyof FlowFormState) =>
-      (e: React.ChangeEvent<HTMLInputElement>) => {
-        setForm((prev) => ({ ...prev, [field]: e.target.value }));
-      };
+  const handleChange =
+    (field: keyof FlowFormState) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setError(null);
 
-      if (!form.key.trim() || !form.flowId.trim()) {
-        setError("Flow key, Flow ID are required.");
-        return;
-      }
-
-      const payload = {
-        flow_key: form.key.trim(),
-        flow_id: form.flowId.trim(),
-        preferred_tracking_domain: form.preferredTrackingDomain.trim(),
-      };
-
       try {
         setSaving(true);
-        let res: Response;
 
         if (initial) {
-          // UPDATE by Key
-          res = await fetch(`/api/flow-configs/key/update?key=${initial.flow_key}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(payload),
-          });
-        } else {
-          // CREATE
-          res = await fetch("/api/flow-configs/create", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(payload),
-          });
+          if (!form.key.trim() || !form.flowId.trim()) {
+            setError("Flow key, Flow ID are required.");
+            return;
+          }
+    
+          const payload = {
+            flow_key: form.key.trim(),
+            flow_id: form.flowId.trim(),
+            preferred_tracking_domain: form.preferredTrackingDomain.trim(),
+          };
+    
+          const res = await fetch(
+            `/api/flow-configs/key/update?key=${initial.flow_key}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify(payload),
+            }
+          );
+
+          const text = await res.text();
+          const json = text ? JSON.parse(text) : {};
+          if (!res.ok || json?.success === false) {
+            throw new Error(json?.message || "Failed to save flow config");
+          }
+
+          await onSaved();
+          onClose();
+          return;
         }
+
+        if (!form.key.trim() || !form.flowId.trim()) {
+          setError("Flow key, Flow ID are required.");
+          return;
+        }
+
+        if (mode === "bulk") {
+          if (bulkPlatforms.length === 0) {
+            setError("Select at least one platform.");
+            return;
+          }
+          if (bulkDevices.length === 0) {
+            setError("Select at least one device.");
+            return;
+          }
+
+          const keys = generatedKeys; // from useMemo
+          if (!keys || keys.length === 0) {
+            setError("No flow keys generated. Check base flow key / selections.");
+            return;
+          }
+
+          for (const key of keys) {
+            const payload = {
+              flow_key: key,
+              flow_id: form.flowId.trim(),
+              preferred_tracking_domain: form.preferredTrackingDomain.trim(),
+            };
+
+            const res = await fetch("/api/flow-configs/create", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify(payload),
+            });
+
+            const text = await res.text();
+            const json = text ? JSON.parse(text) : {};
+            if (!res.ok || json?.success === false) {
+              throw new Error(json?.message || `Failed to create flow config: ${key}`);
+            }
+          }
+
+          await onSaved();
+          onClose();
+          return;
+        }
+
+        const payload = {
+          flow_key: form.key.trim(),
+          flow_id: form.flowId.trim(),
+          preferred_tracking_domain: form.preferredTrackingDomain.trim(),
+        };
+
+        const res = await fetch("/api/flow-configs/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
 
         const text = await res.text();
         const json = text ? JSON.parse(text) : {};
@@ -163,80 +287,218 @@ const FlowConfigDialog: React.FC<FlowConfigDialogProps> = React.memo(
       }
     };
 
-    return (
-      <Dialog
-        open={open}
-        onClose={saving ? undefined : onClose}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>
-          {initial ? "Edit flow configuration" : "Create flow configuration"}
-        </DialogTitle>
-        <form onSubmit={handleSubmit}>
-          <DialogContent dividers>
-            <Stack spacing={2} sx={{ mt: 1 }}>
-              <TextField
-                label="Flow key"
-                helperText={
-                  initial
-                    ? "Flow key cannot be changed for an existing config"
-                    : "Example: heater-us-desktop-taboola"
-                }
-                value={form.key}
-                onChange={handleChange("key")}
-                fullWidth
-                required
-                disabled={!!initial}
-              />
-              <TextField
-                label="Flow ID"
-                value={form.flowId}
-                onChange={handleChange("flowId")}
-                fullWidth
-                required
-              />
-              <TextField
-                select
-                label="Preferred tracking domain"
-                value={form.preferredTrackingDomain}
-                onChange={handleChange("preferredTrackingDomain")}
-                fullWidth
-                required
+  return (
+    <Dialog
+      open={open}
+      onClose={saving ? undefined : onClose}
+      fullWidth
+      maxWidth="sm"
+    >
+      <DialogTitle>
+        {initial ? "Edit flow configuration" : "Create flow configuration"}
+      </DialogTitle>
+      <form onSubmit={handleSubmit}>
+        <DialogContent dividers>
+          {!initial && (
+            <Paper
+              variant="outlined"
+              sx={{
+                mb: 2,
+                p: 0.5,
+                borderRadius: 2,
+                overflow: "hidden",
+              }}
+            >
+              <Tabs
+                value={mode}
+                onChange={(_, v) => setMode(v)}
+                variant="fullWidth"
+                sx={{
+                  minHeight: 36,
+                  "& .MuiTabs-indicator": { height: 0 }, // hide indicator
+                  "& .MuiTab-root": {
+                    minHeight: 36,
+                    textTransform: "none",
+                    fontWeight: 700,
+                    borderRadius: 1.5,
+                    mx: 0.5,
+                  },
+                  "& .Mui-selected": {
+                    bgcolor: "action.selected",
+                  },
+                }}
               >
-                <MenuItem value="click.risinghealthtrends.com">
-                  click.risinghealthtrends.com
-                </MenuItem>
-                <MenuItem value="caringdipaimed.com">
-                  caringdipaimed.com
-                </MenuItem>
-                <MenuItem value="go.forwardlinkclick.com">
-                  go.forwardlinkclick.com
-                </MenuItem>
-                <MenuItem value="click.seekinghealthnews.com">
-                  click.seekinghealthnews.com
-                </MenuItem>
-                <MenuItem value="go.toptrendingnewstoday.com">
-                  go.toptrendingnewstoday.com
-                </MenuItem>
-                <MenuItem value="go.thesmarttechpost.com">
-                  go.thesmarttechpost.com
-                </MenuItem>
-              </TextField>
+                <Tab value="bulk" label="Bulk" />
+                <Tab value="single" label="Single" />
+              </Tabs>
+            </Paper>
+          )}
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label={mode === "bulk" ? "ClientName-Country" : "Flow key"}
+              helperText={
+                initial
+                  ? "Flow key cannot be changed for an existing config"
+                  : mode === "bulk"
+                  ? "Base client name - country (no device/platform). Example: heater-us"
+                  : "Example: heater-us-desktop-taboola"
+              }
+              value={form.key}
+              onChange={handleChange("key")}
+              fullWidth
+              required
+              disabled={!!initial}
+            />
+            {!initial && mode === "bulk" && (
+              <>
+                <Divider />
 
-              {error && <Alert severity="error">{error}</Alert>}
-            </Stack>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={onClose} disabled={saving}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="contained" disabled={saving}>
-              {saving ? "Saving…" : initial ? "Save changes" : "Create"}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
+                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
+                    Platforms
+                  </Typography>
+
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                    {PLATFORM_OPTIONS.map((p) => {
+                      const checked = bulkPlatforms.includes(p.value);
+                      return (
+                        <FormControlLabel
+                          key={p.value}
+                          label={p.label}
+                          sx={{
+                            m: 0,
+                            px: 1,
+                            py: 0.5,
+                            borderRadius: 2,
+                            border: "1px solid",
+                            borderColor: checked ? "primary.main" : "divider",
+                            bgcolor: checked ? "action.selected" : "transparent",
+                            userSelect: "none",
+                          }}
+                          control={
+                            <Checkbox
+                              size="small"
+                              checked={checked}
+                              onChange={toggleBulk("platforms", p.value)}
+                              sx={{ p: 0.5 }}
+                            />
+                          }
+                        />
+                      );
+                    })}
+                  </Box>
+                </Paper>
+
+                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
+                    Devices
+                  </Typography>
+
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                    {DEVICE_OPTIONS.map((d) => {
+                      const checked = bulkDevices.includes(d.value);
+                      return (
+                        <FormControlLabel
+                          key={d.value}
+                          label={d.label}
+                          sx={{
+                            m: 0,
+                            px: 1,
+                            py: 0.5,
+                            borderRadius: 2,
+                            border: "1px solid",
+                            borderColor: checked ? "primary.main" : "divider",
+                            bgcolor: checked ? "action.selected" : "transparent",
+                            userSelect: "none",
+                          }}
+                          control={
+                            <Checkbox
+                              size="small"
+                              checked={checked}
+                              onChange={toggleBulk("devices", d.value)}
+                              sx={{ p: 0.5 }}
+                            />
+                          }
+                        />
+                      );
+                    })}
+                  </Box>
+                </Paper>
+
+                <Divider />
+
+                <Box>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                    <Typography variant="subtitle2">Generated flow keys</Typography>
+                    <Chip size="small" label={`${generatedKeys.length}`} />
+                  </Box>
+
+                  <Paper variant="outlined" sx={{ p: 1.5, maxHeight: 180, overflow: "auto" }}>
+                    {generatedKeys.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        Select at least 1 platform and 1 device to preview keys.
+                      </Typography>
+                    ) : (
+                      <Stack spacing={0.5}>
+                        {generatedKeys.map((k) => (
+                          <Typography key={k} variant="body2" sx={{ fontFamily: "monospace" }}>
+                            {k}
+                          </Typography>
+                        ))}
+                      </Stack>
+                    )}
+                  </Paper>
+                </Box>
+              </>
+            )}
+            <TextField
+              label="Flow ID"
+              value={form.flowId}
+              onChange={handleChange("flowId")}
+              fullWidth
+              required
+            />
+            <TextField
+              select
+              label="Preferred tracking domain"
+              value={form.preferredTrackingDomain}
+              onChange={handleChange("preferredTrackingDomain")}
+              fullWidth
+              required
+            >
+              <MenuItem value="click.risinghealthtrends.com">
+                click.risinghealthtrends.com
+              </MenuItem>
+              <MenuItem value="caringdipaimed.com">
+                caringdipaimed.com
+              </MenuItem>
+              <MenuItem value="go.forwardlinkclick.com">
+                go.forwardlinkclick.com
+              </MenuItem>
+              <MenuItem value="click.seekinghealthnews.com">
+                click.seekinghealthnews.com
+              </MenuItem>
+              <MenuItem value="go.toptrendingnewstoday.com">
+                go.toptrendingnewstoday.com
+              </MenuItem>
+              <MenuItem value="go.thesmarttechpost.com">
+                go.thesmarttechpost.com
+              </MenuItem>
+            </TextField>
+
+            {error && <Alert severity="error">{error}</Alert>}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="contained" disabled={saving}>
+            {saving ? "Saving…" : initial ? "Save changes" : mode === "bulk" ? `Create (${generatedKeys.length})` : "Create"}
+          </Button>
+        </DialogActions>
+      </form>
+    </Dialog>
     );
   }
 );
