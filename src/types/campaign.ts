@@ -23,7 +23,9 @@ export interface CampaignRequestInput {
   bid_amount?: number | string,
   tracking_link?: string | null,
   is_active?: boolean | null,
-  campaign_name?: string | null
+  campaign_name?: string | null,
+  campaign_status?: string | null,
+  widget_target?: string | null
 }
 
 /** UI-only */

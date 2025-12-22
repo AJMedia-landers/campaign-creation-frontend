@@ -72,6 +72,7 @@ export type NewRequestFormProps = {
   onSubmitted?: (res: CampaignCreateResponse) => void;
   title?: string;
   editOf?: number | string;
+  campaignEditOf?: number | string;
 };
 
 export default function NewRequestForm({
@@ -80,9 +81,11 @@ export default function NewRequestForm({
   onSubmitted,
   title = "New Request Form",
   editOf,
+  campaignEditOf,
 }: NewRequestFormProps) {
   const effectiveSubmitLabel = submitLabel ?? (editOf ? "Save changes" : "Create request");
   const router = useRouter();
+  const isCampaignEdit = campaignEditOf != null;
   
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string; id?: string } | null>(null);
@@ -99,7 +102,11 @@ export default function NewRequestForm({
   const [extraHeadlinesCount, setExtraHeadlinesCount] = useState(0);
 
   // ---- form state
-  const [form, setForm] = useState<CampaignRequestInput>({
+  const [form, setForm] = useState<any>({
+    campaign_name: "",
+    tracking_link: "",
+    campaign_status: "",
+    is_active: true,
     campaign_name_post_fix: "",
     client_name: "",
     creatives_folder: "",
@@ -132,16 +139,40 @@ export default function NewRequestForm({
   );
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const initialRef = useRef<any>(null);
 
   const onChange = (k: keyof CampaignRequestInput, v: any) => {
-    setForm((prev) => ({ ...prev, [k]: v }));
-    setErrors((prev) => ({ ...prev, [k]: "" }));
+    setForm((prev: any) => {
+      if ((prev as any)[k] === v) return prev;
+      return { ...prev, [k]: v };
+    });
+  
+    setErrors((prev) => {
+      if (!prev[k as string]) return prev;
+      return { ...prev, [k]: "" };
+    });
   };
 
   const onExtra = (k: keyof UIExtras, v: any) => {
-    setExtras((prev) => ({ ...prev, [k]: v }));
-    setErrors((prev) => ({ ...prev, [k]: "" }));
+    setExtras((prev) => {
+      if ((prev as any)[k] === v) return prev;
+      return { ...prev, [k]: v };
+    });
+  
+    setErrors((prev) => {
+      if (!prev[k as string]) return prev;
+      return { ...prev, [k]: "" };
+    });
   };
+
+  useEffect(() => {
+    if (initialRef.current) return;
+  
+    initialRef.current = {
+      ...form,
+      campaign_date: date ? date.format("YYYY-MM-DD") : undefined,
+    };
+  }, []);
 
   const handleHeadline1Paste = (
     e: ClipboardEvent<HTMLDivElement>
@@ -158,38 +189,43 @@ export default function NewRequestForm({
 
     e.preventDefault();
 
-    setForm((prev) => {
+    const capped = lines.slice(0, 10);
+    const neededExtra = Math.max(0, capped.length - 1);
+
+    setForm((prev: any) => {
       const next: any = { ...prev };
-      lines.slice(0, 10).forEach((line, idx) => {
-        const field = `headline${idx + 1}`;
-        next[field] = line;
+      capped.forEach((line, idx) => {
+        next[`headline${idx + 1}`] = line;
       });
       return next;
     });
 
-    if (lines[0]) {
-      setErrors((prev) => ({ ...prev, headline1: "" }));
-    }
+    setExtraHeadlinesCount((prev) => Math.max(prev, Math.min(neededExtra, 9)));
+
+    setErrors((prev) => ({ ...prev, headline1: "" }));
   };
 
   const handleHoursChange =
     (key: "hours_start" | "hours_end") =>
     (e: ChangeEvent<HTMLInputElement>) => {
-      const value = Number(e.target.value);
+      const raw = e.target.value;
+      const value = raw === "" ? "" : Number(raw);
 
-      // update form value
-      setForm((prev) => ({ ...prev, [key]: value }));
+      setForm((prev: any) => ({ ...prev, [key]: value }));
 
-      // set / clear error
-      setErrors((prev) => ({
-        ...prev,
-        [key]:
-          Number.isNaN(value) || e.target.value === ""
-            ? ""
-            : value > 24
-            ? "Value must be less than or equal to 24"
-            : "",
-      }));
+      const nextErr =
+        raw === ""
+          ? ""
+          : Number.isNaN(Number(raw))
+          ? ""
+          : Number(raw) > 24
+          ? "Value must be less than or equal to 24"
+          : "";
+
+      setErrors((prev) => {
+        if ((prev[key] || "") === nextErr) return prev;
+        return { ...prev, [key]: nextErr };
+      });
   };
 
   // Client names
@@ -531,29 +567,73 @@ export default function NewRequestForm({
     return e;
   };
 
+  const CAMPAIGN_ALLOWED_FIELDS = [
+    "campaign_name",
+    "tracking_link",
+    "campaign_status",
+    "is_active",
+    "campaign_name_post_fix",
+    "campaign_date",
+    "client_name",
+    "creatives_folder",
+    "creative_sub_folder",
+    "sub_folder_type",
+    "ad_platform",
+    "ad_account_id",
+    "brand_name",
+    "hours_start",
+    "hours_end",
+    "timezone",
+    "country",
+    "device",
+    "daily_budget",
+    "cta_button",
+    "creative_description",
+    "language",
+    "pacing",
+    "bid_amount",
+    "error_message",
+    "campaign_id",
+    "headline1","headline2","headline3","headline4","headline5",
+    "headline6","headline7","headline8","headline9","headline10",
+  ];
+
   // ---- payload
-  const buildPayload = (): CampaignRequestInput => {
-    const payload: any = {
+  const buildPayload = (): any => {
+    const base: any = {
       ...form,
       timezone: form.timezone,
       campaign_date: date ? date.format("YYYY-MM-DD") : undefined,
     };
 
-    if (form.folder_ids && form.folder_ids.length > 0) {
-      payload.folder_ids = form.folder_ids;
-    } else {
-      delete payload.folder_ids;
+    if (!isCampaignEdit) {
+      if (!base.folder_ids || base.folder_ids.length === 0) delete base.folder_ids;
+      if (!base.ad_platform?.includes("Outbrain")) delete base.ad_account_id;
+      if (!base.ad_platform?.includes("RevContent")) {
+        delete base.language;
+        delete base.pacing;
+        delete base.bid_amount;
+      }
+      return base as CampaignRequestInput;
     }
 
-    if (!form.ad_platform.includes("Outbrain")) delete payload.ad_account_id;
+    const prev = initialRef.current || {};
+    const picked: any = {};
 
-    if (!form.ad_platform.includes("RevContent")) {
-      delete payload.language;
-      delete payload.pacing;
-      delete payload.bid_amount;
+    for (const key of CAMPAIGN_ALLOWED_FIELDS) {
+      const nextVal = base[key];
+      const prevVal = prev[key];
+
+      const same =
+        typeof nextVal === "object"
+          ? JSON.stringify(nextVal ?? null) === JSON.stringify(prevVal ?? null)
+          : (nextVal ?? "") === (prevVal ?? "");
+
+      if (!same) {
+        picked[key] = nextVal;
+      }
     }
-
-    return payload as CampaignRequestInput;
+    return picked;
   };
 
   // ---- toast
@@ -584,46 +664,62 @@ export default function NewRequestForm({
     try {
       const payload = buildPayload();
       console.log("Submitting payload:", payload);
-      const url = editOf
-        ? `/api/campaigns/requests?id=${editOf}`
-        : `/api/campaigns/create`;
 
-      const method = editOf ? "PATCH" : "POST";
+      const url = isCampaignEdit
+        ? `/api/campaigns/update?id=${campaignEditOf}`
+        : editOf
+          ? `/api/campaigns/requests?id=${editOf}`
+          : `/api/campaigns/create`;
+
+      const method = isCampaignEdit ? "PATCH" : editOf ? "PATCH" : "POST";
 
       const formData = new FormData();
       formData.append("data", JSON.stringify(payload));
 
-      if (widgetTargetFile) {
+      if (!isCampaignEdit && widgetTargetFile) {
         formData.append("widget_target_file", widgetTargetFile);
       }
-
-      console.log("FormData entries:", [...formData.entries()]);
 
       const res = await fetch(url, {
         method,
         body: formData,
+        credentials: "include",
       });
-      const json = await res.json().catch(() => ({}));
+
+      const raw = await res.text();
+      let json: any = null;
+      try {
+        json = raw ? JSON.parse(raw) : null;
+      } catch {
+        json = null;
+      }
+
       if (!res.ok || json?.success === false) {
-        const msg = formatBackendErrors(json);
+        const msg = json ? formatBackendErrors(json) : `Request failed (HTTP ${res.status})`;
         setResult({ ok: false, msg });
         setToastMsg(msg);
         setToastSeverity("error");
         setToastOpen(true);
         return;
       }
-      setResult({ ok: true, msg: json.message, id: json.data?.id });
-      setToastMsg(json.message || "Request created");
+
+      setResult({ ok: true, msg: json?.message || "Success", id: json?.data?.id });
+      setToastMsg(json?.message || "Success");
       setToastSeverity("success");
       setToastOpen(true);
+
       onSubmitted?.(json);
-      if (!editOf) {
-        setTimeout(() => {
-          router.replace("/");
-        }, 3000);
+
+      if (!editOf && !isCampaignEdit) {
+        setTimeout(() => router.replace("/"), 3000);
       }
     } catch (err: any) {
-      setResult({ ok: false, msg: err.message || "Request failed" });
+      console.error("Submit error:", err);
+      const msg = err?.message || "Request failed";
+      setResult({ ok: false, msg });
+      setToastMsg(msg);
+      setToastSeverity("error");
+      setToastOpen(true);
     } finally {
       setSubmitting(false);
     }
@@ -712,6 +808,41 @@ export default function NewRequestForm({
               fullWidth
             />
           </Box>
+
+          {isCampaignEdit && (
+            <>
+              <TextField
+                label="CampaignName"
+                value={form.campaign_name || ""}
+                onChange={(e) => onChange("campaign_name", e.target.value)}
+                fullWidth
+              />
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 2,
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                }}
+              >
+                <TextField
+                  label="TrackingLink"
+                  value={form.tracking_link || ""}
+                  onChange={(e) => onChange("tracking_link", e.target.value)}
+                  fullWidth
+                />
+                <TextField
+                  select
+                  label="IsActive"
+                  value={String(!!form.is_active)}
+                  onChange={(e) => onChange("is_active", e.target.value === "true")}
+                  fullWidth
+                >
+                  <MenuItem value="true">true</MenuItem>
+                  <MenuItem value="false">false</MenuItem>
+                </TextField>
+              </Box>
+            </>
+          )}
 
           <Box
             sx={{
@@ -1037,7 +1168,7 @@ export default function NewRequestForm({
             />
           )}
 
-          {form.ad_platform.includes("RevContent") && (
+          {!isCampaignEdit && form.ad_platform.includes("RevContent") && (
             <>
               <Box
                 sx={{
