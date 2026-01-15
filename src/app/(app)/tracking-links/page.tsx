@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Box,
     Button,
@@ -102,9 +102,10 @@ export default function TrackingLinksPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(data),
             });
+            console.log(res)
             if (!res.ok) {
                 const error = await res.json();
-                throw new Error(error.message || "Failed to generate tracking link");
+                throw new Error(error.error || "Failed to generate tracking link");
             }
             return res.json();
         },
@@ -142,6 +143,28 @@ export default function TrackingLinksPage() {
             .map((item) => item.country)
             .sort();
     }, [countriesData]);
+
+    useEffect(() => {
+        const { platform, country, flow_key } = formData;
+
+        const selectedFlow = flowsData?.find((f) => f.flow_key === flow_key);
+        const flowName = selectedFlow?.flow_key || "";
+
+        const parts: string[] = [];
+        if (platform) parts.push(platform);
+        if (country) parts.push(
+            country
+            .split(/[^A-Za-z]+/)[0]
+            .slice(0, 2)
+            .toUpperCase()
+        );
+        if (flowName) parts.push(flowName.split("-")[0].trim());
+
+        if (parts.length > 0) {
+            const generatedName = parts.join(" - ");
+            setFormData((prev) => ({ ...prev, campaign_name: generatedName }));
+        }
+    }, [formData.platform, formData.country, formData.flow_key, flowsData]);
 
     return (
         <Box sx={{ p: 3, maxWidth: 1200, mx: "auto" }}>
@@ -210,15 +233,15 @@ export default function TrackingLinksPage() {
                                 }
                             />
 
-                            {/* Campaign Name */}
+                            {/* Campaign Name - Auto-generated based on selections */}
                             <TextField
                                 label="Campaign Name"
                                 value={formData.campaign_name}
                                 onChange={(e) => handleInputChange("campaign_name", e.target.value)}
                                 required
                                 fullWidth
-                                placeholder="e.g., Summer Sale 2024"
-                                helperText="Name your campaign for easy identification"
+                                placeholder="e.g., Taboola - United States - Knife Sharpener"
+                                helperText="Auto-generated from Platform, Country, and Flow selections. You can edit it if needed."
                             />
 
                             {/* Flow Selection - Searchable Autocomplete */}
