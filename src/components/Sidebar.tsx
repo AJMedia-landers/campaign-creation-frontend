@@ -15,6 +15,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import TableChartIcon from '@mui/icons-material/TableChart';
 import EditIcon from '@mui/icons-material/Edit';
 import TableRowsIcon from '@mui/icons-material/TableRows';
+import LinkIcon from '@mui/icons-material/Link';
 
 
 const BASE_NAV_ITEMS = [
@@ -81,6 +82,7 @@ export default function Sidebar() {
       ? [
           ...BASE_NAV_ITEMS,
           { label: "Admin panel", href: "/admin", Icon: SettingsIcon },
+          { label: "Tracking Links", href: "/tracking-links", Icon: LinkIcon },
         ]
       : BASE_NAV_ITEMS;
 
