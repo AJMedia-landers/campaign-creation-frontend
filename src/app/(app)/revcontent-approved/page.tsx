@@ -22,7 +22,11 @@ import {
   DialogTitle,
   MenuItem,
   TextField,
+  Checkbox,
+  Chip,
 } from "@mui/material";
+import Snackbar from "@mui/material/Snackbar";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import ArrowDropUpIcon from "@mui/icons-material/ArrowDropUp";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
@@ -121,6 +125,8 @@ export default function RevcontentApprovedPage() {
 
   const [sort, setSort] = React.useState<SortState>(null);
 
+  const [copySnackOpen, setCopySnackOpen] = React.useState(false);
+
   const [campOverlayOpen, setCampOverlayOpen] = React.useState(false);
   const [campForOverlay, setCampForOverlay] = React.useState<any | null>(null);
   const [startDialogOpen, setStartDialogOpen] = React.useState(false);
@@ -129,6 +135,50 @@ export default function RevcontentApprovedPage() {
   const [endHour, setEndHour] = React.useState<number | "">("");
   const [startDialogError, setStartDialogError] = React.useState<string | null>(null);
   const [startDialogSaving, setStartDialogSaving] = React.useState(false);
+
+  // ---- row selection for bulk actions ----
+  const [selectedIds, setSelectedIds] = React.useState<Set<number>>(new Set());
+  const [autoRunSaving, setAutoRunSaving] = React.useState(false);
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === sortedRows.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sortedRows.map((r: any) => r.id)));
+    }
+  };
+
+  const handleBulkAutoRun = async (autoRun: boolean) => {
+    if (selectedIds.size === 0) return;
+    try {
+      setAutoRunSaving(true);
+      const res = await fetch("/api/campaigns/revcontent/auto-run", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ids: [...selectedIds], auto_run: autoRun }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.message || "Failed to update Auto Run.");
+      }
+      setSelectedIds(new Set());
+      await load();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAutoRunSaving(false);
+    }
+  };
 
   const HOURS = React.useMemo(() => Array.from({ length: 25 }, (_, i) => i), []);
 
@@ -190,13 +240,11 @@ export default function RevcontentApprovedPage() {
       allColumns.filter((k) =>
         [
           "campaign_name",
-          "campaign_status",
           "campaign_id",
-          "tracking_link",
-          "creative_sub_folder",
-          "creatives_folder",
-          "sub_folder_type",
-          "built_time",
+          "hours_start",
+          "hours_end",
+          "timezone",
+          "campaign_status"
         ].includes(k)
       ),
     [allColumns]
@@ -570,6 +618,32 @@ export default function RevcontentApprovedPage() {
         </Stack>
 
         <Stack direction="row" spacing={1.5} alignItems="center">
+          {selectedIds.size > 0 && (
+            <>
+              <Typography variant="body2" color="text.secondary" sx={{ mr: 0.5 }}>
+                {selectedIds.size} selected
+              </Typography>
+              <Button
+                size="small"
+                variant="contained"
+                color="success"
+                disabled={autoRunSaving}
+                onClick={() => handleBulkAutoRun(true)}
+              >
+                Enable Auto Run
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                color="inherit"
+                disabled={autoRunSaving}
+                onClick={() => handleBulkAutoRun(false)}
+              >
+                Disable Auto Run
+              </Button>
+            </>
+          )}
+
           <IconButton
             onClick={load}
             size="small"
@@ -647,9 +721,27 @@ export default function RevcontentApprovedPage() {
                 }}
               >
                 <TableCell
+                  key="select"
+                  sx={{ minWidth: 48, width: 48, maxWidth: 48 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    size="small"
+                    checked={sortedRows.length > 0 && selectedIds.size === sortedRows.length}
+                    indeterminate={selectedIds.size > 0 && selectedIds.size < sortedRows.length}
+                    onChange={toggleSelectAll}
+                  />
+                </TableCell>
+                <TableCell
                   key="is_active"
                   sx={{ minWidth: 40, width: 40, maxWidth: 40 }}
                 >
+                </TableCell>
+                <TableCell
+                  key="auto_run"
+                  sx={{ minWidth: 110, width: 110, maxWidth: 110 }}
+                >
+                  Auto Run
                 </TableCell>
                 <TableCell
                   key="actions"
@@ -746,6 +838,17 @@ export default function RevcontentApprovedPage() {
                   }}
                 >
                   <TableCell
+                    key="select"
+                    sx={{ minWidth: 48, width: 48, maxWidth: 48 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Checkbox
+                      size="small"
+                      checked={selectedIds.has(row.id)}
+                      onChange={() => toggleSelect(row.id)}
+                    />
+                  </TableCell>
+                  <TableCell
                     key="is_active"
                     sx={{ minWidth: 40, width: 40, maxWidth: 40 }}
                   >
@@ -756,6 +859,18 @@ export default function RevcontentApprovedPage() {
                         borderRadius: "50%",
                         bgcolor: row.is_active ? "green" : "red",
                       }}
+                    />
+                  </TableCell>
+                  <TableCell
+                    key="auto_run"
+                    sx={{ minWidth: 110, width: 110, maxWidth: 110 }}
+                  >
+                    <Chip
+                      label={row.auto_run ? "Enabled" : "Disabled"}
+                      size="small"
+                      color={row.auto_run ? "success" : "default"}
+                      variant={row.auto_run ? "filled" : "outlined"}
+                      sx={{ fontWeight: 500 }}
                     />
                   </TableCell>
                   <TableCell
@@ -802,6 +917,34 @@ export default function RevcontentApprovedPage() {
                         ? "—"
                         : String(raw);
 
+                    if (key === "campaign_id" && text !== "—") {
+                      return (
+                        <TableCell
+                          key={key}
+                          title={text}
+                          sx={{
+                            width: colW[key],
+                            maxWidth: colW[key],
+                          }}
+                        >
+                          <Stack direction="row" alignItems="center" spacing={0.5}>
+                            <span>{text}</span>
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(text);
+                                setCopySnackOpen(true);
+                              }}
+                              sx={{ p: 0.25, opacity: 0.5, "&:hover": { opacity: 1 } }}
+                            >
+                              <ContentCopyIcon sx={{ fontSize: 14 }} />
+                            </IconButton>
+                          </Stack>
+                        </TableCell>
+                      );
+                    }
+
                     return (
                       <TableCell
                         key={key}
@@ -821,7 +964,7 @@ export default function RevcontentApprovedPage() {
               {sortedRows.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={visibleCols.length + 1}
+                    colSpan={visibleCols.length + 4}
                     sx={{
                       py: 4,
                       textAlign: "center",
@@ -921,6 +1064,14 @@ export default function RevcontentApprovedPage() {
         open={campOverlayOpen}
         onClose={() => setCampOverlayOpen(false)}
         data={campForOverlay}
+      />
+
+      <Snackbar
+        open={copySnackOpen}
+        autoHideDuration={1500}
+        onClose={() => setCopySnackOpen(false)}
+        message="Campaign ID copied"
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       />
     </Box>
   );
