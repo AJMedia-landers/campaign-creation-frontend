@@ -25,6 +25,8 @@ import {
   Checkbox,
   Chip,
 } from "@mui/material";
+import Snackbar from "@mui/material/Snackbar";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import ArrowDropUpIcon from "@mui/icons-material/ArrowDropUp";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
@@ -122,6 +124,8 @@ export default function RevcontentApprovedPage() {
     React.useState<RequestsFilterValue>(defaultRequestsFilter);
 
   const [sort, setSort] = React.useState<SortState>(null);
+
+  const [copySnackOpen, setCopySnackOpen] = React.useState(false);
 
   const [campOverlayOpen, setCampOverlayOpen] = React.useState(false);
   const [campForOverlay, setCampForOverlay] = React.useState<any | null>(null);
@@ -913,6 +917,34 @@ export default function RevcontentApprovedPage() {
                         ? "—"
                         : String(raw);
 
+                    if (key === "campaign_id" && text !== "—") {
+                      return (
+                        <TableCell
+                          key={key}
+                          title={text}
+                          sx={{
+                            width: colW[key],
+                            maxWidth: colW[key],
+                          }}
+                        >
+                          <Stack direction="row" alignItems="center" spacing={0.5}>
+                            <span>{text}</span>
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(text);
+                                setCopySnackOpen(true);
+                              }}
+                              sx={{ p: 0.25, opacity: 0.5, "&:hover": { opacity: 1 } }}
+                            >
+                              <ContentCopyIcon sx={{ fontSize: 14 }} />
+                            </IconButton>
+                          </Stack>
+                        </TableCell>
+                      );
+                    }
+
                     return (
                       <TableCell
                         key={key}
@@ -1032,6 +1064,14 @@ export default function RevcontentApprovedPage() {
         open={campOverlayOpen}
         onClose={() => setCampOverlayOpen(false)}
         data={campForOverlay}
+      />
+
+      <Snackbar
+        open={copySnackOpen}
+        autoHideDuration={1500}
+        onClose={() => setCopySnackOpen(false)}
+        message="Campaign ID copied"
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       />
     </Box>
   );
