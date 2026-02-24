@@ -24,6 +24,7 @@ const BASE_NAV_ITEMS = [
   { label: "Campaign Set Requests", href: "/", Icon: ChecklistOutlinedIcon },
   { label: "Update Ads Requests", href: "/update-ads-requests", Icon: TableRowsIcon },
   { label: "RevContent", href: "/revcontent-approved", Icon: TableChartIcon },
+  { label: "Tracking Links", href: "/tracking-links", Icon: LinkIcon },
 ];
 
 
@@ -82,7 +83,6 @@ export default function Sidebar() {
       ? [
           ...BASE_NAV_ITEMS,
           { label: "Admin panel", href: "/admin", Icon: SettingsIcon },
-          { label: "Tracking Links", href: "/tracking-links", Icon: LinkIcon },
         ]
       : BASE_NAV_ITEMS;
 
