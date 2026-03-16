@@ -62,6 +62,7 @@ const CTA_OPTIONS = ["Learn more", "Shop now", "Read more"];
 
 type ClientName = { id?: string; name: string } | string;
 type ObAccount = { id: string; name: string, marketer_id: string };
+type TabAccount = { id: string; name: string; platform: string };
 type RawTzRow = { country: string; timezone: string };
 type FolderItem = { id: string; name: string };
 type LanguageOption = { id: string; name: string };
@@ -113,6 +114,7 @@ export default function NewRequestForm({
     folder_ids: [],
     ad_platform: [],
     ad_account_id: "",
+    taboola_account_id: "",
     brand_name: "",
     timezone: "UTC",
     country: "",
@@ -278,6 +280,33 @@ export default function NewRequestForm({
         if (!canceled) setAccError("Failed to load Outbrain accounts");
       } finally {
         if (!canceled) setAccLoading(false);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  // Taboola accounts
+  const [tabAccounts, setTabAccounts] = useState<TabAccount[]>([]);
+  const [tabAccLoading, setTabAccLoading] = useState(false);
+  const [tabAccError, setTabAccError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let canceled = false;
+    (async () => {
+      try {
+        setTabAccLoading(true);
+        setTabAccError(null);
+        const res = await fetch("/api/taboola-accounts");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+        if (!canceled) setTabAccounts(list as TabAccount[]);
+      } catch {
+        if (!canceled) setTabAccError("Failed to load Taboola accounts");
+      } finally {
+        if (!canceled) setTabAccLoading(false);
       }
     })();
     return () => {
@@ -551,6 +580,8 @@ export default function NewRequestForm({
     if (!form.ad_platform?.length) e.ad_platform = "Select at least one platform";
     if (form.ad_platform.includes("Outbrain") && !form.ad_account_id)
       e.ad_account_id = "Select an Outbrain account";
+    if (form.ad_platform.includes("Taboola") && !form.taboola_account_id)
+      e.taboola_account_id = "Select a Taboola account";
     if (!form.country) e.country = "Required";
     if (!form.timezone) e.timezone = "Required";
     if (!form.device?.length) e.device = "Select at least one device";
@@ -580,6 +611,7 @@ export default function NewRequestForm({
     "sub_folder_type",
     "ad_platform",
     "ad_account_id",
+    "taboola_account_id",
     "brand_name",
     "hours_start",
     "hours_end",
@@ -609,6 +641,7 @@ export default function NewRequestForm({
     if (!isCampaignEdit) {
       if (!base.folder_ids || base.folder_ids.length === 0) delete base.folder_ids;
       if (!base.ad_platform?.includes("Outbrain")) delete base.ad_account_id;
+      if (!base.ad_platform?.includes("Taboola")) delete base.taboola_account_id;
       if (!base.ad_platform?.includes("RevContent")) {
         delete base.language;
         delete base.pacing;
@@ -1161,6 +1194,34 @@ export default function NewRequestForm({
                     form.ad_platform.includes("Outbrain")
                       ? errors.ad_account_id || accError || ""
                       : "Enable by selecting Outbrain"
+                  }
+                  fullWidth
+                />
+              )}
+            />
+          )}
+
+          {/* Taboola account */}
+          {form.ad_platform.includes("Taboola") && (
+            <Autocomplete
+              options={tabAccounts}
+              getOptionLabel={(opt) => `${opt.name} (${opt.id})`}
+              value={tabAccounts.find((a) => a.id === form.taboola_account_id) || null}
+              onChange={(_, val) => onChange("taboola_account_id", val?.id ?? "")}
+              isOptionEqualToValue={(o, v) => o.id === v.id}
+              disabled={!form.ad_platform.includes("Taboola")}
+              loading={tabAccLoading}
+              loadingText="Loading accounts…"
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Taboola Account"
+                  placeholder="Search"
+                  error={!!errors.taboola_account_id}
+                  helperText={
+                    form.ad_platform.includes("Taboola")
+                      ? errors.taboola_account_id || tabAccError || ""
+                      : "Enable by selecting Taboola"
                   }
                   fullWidth
                 />
