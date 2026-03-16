@@ -146,7 +146,8 @@ export default function RequestDetailsOverlay({
               : (data?.ad_platform ?? "—")
           }
         />
-        <Meta label="Ad Account" value={data?.ad_account_id ?? "—"} />
+        <Meta label="Ad Account (OB)" value={data?.ad_account_id ?? "—"} />
+        <Meta label="Taboola Account" value={data?.taboola_account_id ?? "—"} />
         <Meta label="Country" value={data?.country ?? "—"} />
         <Meta
           label="Device"
