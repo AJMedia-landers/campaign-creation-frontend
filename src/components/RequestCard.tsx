@@ -28,6 +28,7 @@ import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ControlPointDuplicateIcon from "@mui/icons-material/ControlPointDuplicate";
 import FlagIcon from "@mui/icons-material/Flag";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
@@ -48,12 +49,13 @@ interface RequestCardProps {
   req: RequestItem;
   onOpenRequest: (r: RequestItem) => void;
   onOpenCampaign: (row: any) => void;
+  onDuplicate?: (r: RequestItem) => void;
   visibleCols?: string[];
   languages?: LanguageOption[];
   showFullData?: boolean;
 }
 
-export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibleCols: externalVisible, languages, showFullData }: RequestCardProps) {
+export default function RequestCard({ req, onOpenRequest, onOpenCampaign, onDuplicate, visibleCols: externalVisible, languages, showFullData }: RequestCardProps) {
   const isUpdateAdsRequest = !showFullData;
 
   const allColumns = React.useMemo(() => {
@@ -522,6 +524,20 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
         }
         action={
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            {/* Duplicate request */}
+            {!isUpdateAdsRequest && onDuplicate && (
+              <Tooltip title="Duplicate request">
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDuplicate(req);
+                  }}
+                >
+                  <ControlPointDuplicateIcon sx={{ fontSize: 20 }} />
+                </IconButton>
+              </Tooltip>
+            )}
             {/* Toggle flag */}
             {!isUpdateAdsRequest && (
               <Tooltip title={req.review_flag ? "Flagged for review" : "Mark for review"}>
