@@ -123,6 +123,9 @@ export default function CampaignSetRequestsPage() {
   const [editCampaignOpen, setEditCampaignOpen] = React.useState(false);
   const [editCampaignOf, setEditCampaignOf] = React.useState<any | null>(null);
 
+  const [duplicateOpen, setDuplicateOpen] = React.useState(false);
+  const [duplicateOf, setDuplicateOf] = React.useState<RequestItem | null>(null);
+
   const mapRequestToFormDefaults = (r: RequestItem) => ({
     campaign_name_post_fix: r.campaign_name_post_fix ?? "",
     client_name: r.client_name ?? "",
@@ -399,6 +402,11 @@ export default function CampaignSetRequestsPage() {
   const handleEditRequest = (req: RequestItem) => {
     setEditOf(req);
     setEditOpen(true);
+  };
+
+  const handleDuplicateRequest = (req: RequestItem) => {
+    setDuplicateOf(req);
+    setDuplicateOpen(true);
   };
 
   const handleOpenInline = (req: RequestItem) => {
@@ -738,6 +746,7 @@ export default function CampaignSetRequestsPage() {
                 req={req}
                 onOpenRequest={openRequest}
                 onOpenCampaign={openCampaign}
+                onDuplicate={handleDuplicateRequest}
                 visibleCols={visibleCols}
                 languages={languages}
                 showFullData={true}
@@ -853,6 +862,28 @@ export default function CampaignSetRequestsPage() {
                 );
 
                 setEditCampaignOf(null);
+              }}
+            />
+          )}
+        </Box>
+      </Dialog>
+
+      <Dialog
+        open={duplicateOpen}
+        onClose={() => setDuplicateOpen(false)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <Box sx={{ p: { xs: 1.5, md: 2 } }}>
+          {duplicateOf && (
+            <NewRequestForm
+              title="Duplicate Request"
+              defaultValues={mapRequestToFormDefaults(duplicateOf)}
+              submitLabel="Duplicate"
+              onSubmitted={(res) => {
+                setDuplicateOpen(false);
+                setDuplicateOf(null);
+                load();
               }}
             />
           )}
