@@ -21,12 +21,14 @@ import {
   ListItemIcon,
   ListItemText,
   Collapse,
+  Snackbar,
 } from "@mui/material";
 import ArrowDropUpIcon from "@mui/icons-material/ArrowDropUp";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ControlPointDuplicateIcon from "@mui/icons-material/ControlPointDuplicate";
 import FlagIcon from "@mui/icons-material/Flag";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
@@ -47,12 +49,13 @@ interface RequestCardProps {
   req: RequestItem;
   onOpenRequest: (r: RequestItem) => void;
   onOpenCampaign: (row: any) => void;
+  onDuplicate?: (r: RequestItem) => void;
   visibleCols?: string[];
   languages?: LanguageOption[];
   showFullData?: boolean;
 }
 
-export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibleCols: externalVisible, languages, showFullData }: RequestCardProps) {
+export default function RequestCard({ req, onOpenRequest, onOpenCampaign, onDuplicate, visibleCols: externalVisible, languages, showFullData }: RequestCardProps) {
   const isUpdateAdsRequest = !showFullData;
 
   const allColumns = React.useMemo(() => {
@@ -154,6 +157,7 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
   const resetCols = () => externalVisible ? undefined : setVisibleCols(defaultVisible);
   const [, setTick] = React.useState(0);
   const forceUpdate = () => setTick((x) => x + 1);
+  const [copySnack, setCopySnack] = React.useState<string | null>(null);
 
   /** Column widths */
   const [colW, setColW] = React.useState<Record<string, number>>(() => {
@@ -520,6 +524,20 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
         }
         action={
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            {/* Duplicate request */}
+            {!isUpdateAdsRequest && onDuplicate && (
+              <Tooltip title="Duplicate request">
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDuplicate(req);
+                  }}
+                >
+                  <ControlPointDuplicateIcon sx={{ fontSize: 20 }} />
+                </IconButton>
+              </Tooltip>
+            )}
             {/* Toggle flag */}
             {!isUpdateAdsRequest && (
               <Tooltip title={req.review_flag ? "Flagged for review" : "Mark for review"}>
@@ -700,6 +718,24 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
                             <ArrowDropDownIcon fontSize="small" />
                           )
                         )}
+                        {key === "campaign_id" && (req.campaigns?.length ?? 0) > 0 && (
+                          <Tooltip title="Copy all campaign IDs">
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const idList = (req.campaigns ?? [])
+                                  .map((c: any) => c.campaign_id)
+                                  .filter(Boolean);
+                                navigator.clipboard.writeText(idList.join(", "));
+                                setCopySnack(`Copied ${idList.length} campaign ID${idList.length === 1 ? "" : "s"}`);
+                              }}
+                              sx={{ ml: 0.5 }}
+                            >
+                              <ContentCopyIcon sx={{ fontSize: 14 }} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </Box>
                       {/* drag handle */}
                       <Box
@@ -762,6 +798,14 @@ export default function RequestCard({ req, onOpenRequest, onOpenCampaign, visibl
           </Table>
         </CardContent>
       </Collapse>
+
+      <Snackbar
+        open={!!copySnack}
+        autoHideDuration={2000}
+        onClose={() => setCopySnack(null)}
+        message={copySnack}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      />
     </Card>
   );
 }
