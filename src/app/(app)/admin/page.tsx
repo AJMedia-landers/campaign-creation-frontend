@@ -29,6 +29,7 @@ import {
   FormControlLabel,
   Divider,
   Chip,
+  Snackbar,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -57,7 +58,14 @@ type ClientName = {
   updated_at?: string;
 };
 
-type TabValue = "flow-config" | "client-config";
+type PlatformAccount = {
+  id: string;
+  name: string;
+  platform: string;
+  timezone: string | null;
+};
+
+type TabValue = "flow-config" | "client-config" | "accounts";
 
 type FlowFormState = {
   key: string;
@@ -640,6 +648,21 @@ export default function AdminPage() {
   const [clientToDelete, setClientToDelete] =
     React.useState<ClientName | null>(null);
 
+  // platform accounts (Taboola / Outbrain)
+  const [accounts, setAccounts] = React.useState<PlatformAccount[]>([]);
+  const [accountsLoading, setAccountsLoading] = React.useState(false);
+  const [accountsError, setAccountsError] = React.useState<string | null>(null);
+  const [accountPlatform, setAccountPlatform] = React.useState<"all" | "taboola" | "outbrain">("all");
+  const [accountNameSearch, setAccountNameSearch] = React.useState("");
+  const [accountPage, setAccountPage] = React.useState(0);
+  const [accountRowsPerPage, setAccountRowsPerPage] = React.useState(10);
+  const [accountSyncing, setAccountSyncing] = React.useState(false);
+  const [snack, setSnack] = React.useState<{
+    open: boolean;
+    severity: "success" | "error" | "info";
+    message: string;
+  }>({ open: false, severity: "info", message: "" });
+
   // --------- ACCESS GUARD ----------
   React.useEffect(() => {
     let cancelled = false;
@@ -738,11 +761,61 @@ export default function AdminPage() {
     }
   }, []);
 
+  const handleSyncAccounts = async () => {
+    setAccountSyncing(true);
+    try {
+      const res = await fetch("/api/cron/accounts/sync-all", {
+        method: "POST",
+        credentials: "include",
+      });
+      const json = await res.json();
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.message || json?.error || "Sync failed");
+      }
+      const newCount = json?.data?.newAccounts ?? 0;
+      const updatedCount = json?.data?.updatedAccounts ?? 0;
+      setSnack({
+        open: true,
+        severity: "success",
+        message: `Sync complete — ${newCount} new account(s) added, ${updatedCount} updated.`,
+      });
+      await loadAccounts();
+    } catch (err: any) {
+      setSnack({
+        open: true,
+        severity: "error",
+        message: err?.message || "Sync failed",
+      });
+    } finally {
+      setAccountSyncing(false);
+    }
+  };
+
+  const loadAccounts = React.useCallback(async () => {
+    setAccountsLoading(true);
+    setAccountsError(null);
+    try {
+      const res = await fetch("/api/accounts", {
+        credentials: "include",
+      });
+      const json = await res.json();
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.message || json?.error || "Failed to load accounts");
+      }
+      setAccounts(json.data ?? []);
+    } catch (err: any) {
+      setAccountsError(err.message);
+    } finally {
+      setAccountsLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     if (!userLoaded || accessDenied) return;
     loadFlows();
     loadClients();
-  }, [userLoaded, accessDenied, loadFlows, loadClients]);
+    loadAccounts();
+  }, [userLoaded, accessDenied, loadFlows, loadClients, loadAccounts]);
 
 
 
@@ -771,6 +844,25 @@ export default function AdminPage() {
       c.name.toLowerCase().includes(search)
     );
   }, [clients, search]);
+
+  const visibleAccounts = React.useMemo(() => {
+    const nameQuery = accountNameSearch.trim().toLowerCase();
+    return accounts.filter((a) => {
+      if (accountPlatform !== "all" && a.platform !== accountPlatform) return false;
+      if (nameQuery && !a.name.toLowerCase().includes(nameQuery)) return false;
+      return true;
+    });
+  }, [accounts, accountPlatform, accountNameSearch]);
+
+  React.useEffect(() => {
+    setAccountPage(0);
+  }, [accountPlatform, accountNameSearch, accountRowsPerPage]);
+
+  const pagedAccounts = React.useMemo(() => {
+    if (accountRowsPerPage === -1) return visibleAccounts;
+    const start = accountPage * accountRowsPerPage;
+    return visibleAccounts.slice(start, start + accountRowsPerPage);
+  }, [visibleAccounts, accountPage, accountRowsPerPage]);
 
   const openCreate = () => {
     setEditing(null);
@@ -901,6 +993,7 @@ export default function AdminPage() {
         >
           <Tab label="Flow Config" value="flow-config" />
           <Tab label="Client Config" value="client-config" />
+          <Tab label="Accounts" value="accounts" />
         </Tabs>
       </Paper>
 
@@ -1115,6 +1208,128 @@ export default function AdminPage() {
           />
         </>
       )}
+
+      {/* ACCOUNTS TAB */}
+      {tab === "accounts" && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 1.5,
+            }}
+          >
+            <Box>
+              <Typography variant="h6">Accounts</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Taboola & Outbrain accounts.
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+              <IconButton
+                aria-label="reload"
+                onClick={() => loadAccounts()}
+                disabled={accountsLoading || accountSyncing}
+              >
+                <RefreshIcon />
+              </IconButton>
+              <Button
+                variant="contained"
+                onClick={handleSyncAccounts}
+                disabled={accountSyncing}
+                startIcon={
+                  accountSyncing ? <CircularProgress size={16} color="inherit" /> : null
+                }
+              >
+                {accountSyncing ? "Syncing…" : "Sync"}
+              </Button>
+            </Box>
+          </Box>
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 2 }}>
+            <TextField
+              select
+              size="small"
+              label="Platform"
+              value={accountPlatform}
+              onChange={(e) =>
+                setAccountPlatform(e.target.value as "all" | "taboola" | "outbrain")
+              }
+              sx={{ minWidth: 180 }}
+            >
+              <MenuItem value="all">All</MenuItem>
+              <MenuItem value="taboola">Taboola</MenuItem>
+              <MenuItem value="outbrain">Outbrain</MenuItem>
+            </TextField>
+            <TextField
+              size="small"
+              label="Search by name"
+              value={accountNameSearch}
+              onChange={(e) => setAccountNameSearch(e.target.value)}
+              fullWidth
+            />
+          </Stack>
+
+          {accountsError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {accountsError}
+            </Alert>
+          )}
+
+          {accountsLoading ? (
+            <Box
+              sx={{
+                py: 4,
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <CircularProgress size={28} />
+            </Box>
+          ) : visibleAccounts.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              No accounts found.
+            </Typography>
+          ) : (
+            <>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>ID</TableCell>
+                    <TableCell>Platform</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {pagedAccounts.map((acc) => (
+                    <TableRow key={`${acc.platform}-${acc.id}`}>
+                      <TableCell>{acc.name}</TableCell>
+                      <TableCell sx={{ fontFamily: "monospace" }}>{acc.id}</TableCell>
+                      <TableCell>
+                        <Chip size="small" label={acc.platform} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <TablePagination
+                component="div"
+                count={visibleAccounts.length}
+                page={accountPage}
+                onPageChange={(_, p) => setAccountPage(p)}
+                rowsPerPage={accountRowsPerPage}
+                onRowsPerPageChange={(e) =>
+                  setAccountRowsPerPage(parseInt(e.target.value, 10))
+                }
+                rowsPerPageOptions={[5, 10, 15, 20, { label: "All", value: -1 }]}
+              />
+            </>
+          )}
+        </Paper>
+      )}
+
       <ConfirmBeforeSubmit
         open={deleteModalOpen}
         onCancel={() => setDeleteModalOpen(false)}
@@ -1127,6 +1342,22 @@ export default function AdminPage() {
         }
         confirmLabel="Delete"
       />
+
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={5000}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Alert
+          onClose={() => setSnack((s) => ({ ...s, open: false }))}
+          severity={snack.severity}
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {snack.message}
+        </Alert>
+      </Snackbar>
 
       <ConfirmBeforeSubmit
         open={clientDeleteModalOpen}
