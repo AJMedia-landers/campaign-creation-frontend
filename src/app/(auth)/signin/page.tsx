@@ -29,7 +29,13 @@ export default function SignInPage() {
         body: JSON.stringify({ email, password }),
       });
       const json = await res.json();
-      if (!res.ok || !json?.success) throw new Error(json?.message || "Login failed");
+      if (!res.ok || !json?.success) {
+        if (json?.data?.verification_required) {
+          router.replace(`/verify?email=${encodeURIComponent(json.data.email || email)}`);
+          return;
+        }
+        throw new Error(json?.message || "Login failed");
+      }
       setSocketToken(json.data.token);
       setOkOpen(true);
       setTimeout(() => router.replace("/"), 700);
