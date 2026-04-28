@@ -1239,7 +1239,7 @@ export default function NewRequestForm({
           {form.ad_platform.includes("Taboola") && (
             <Autocomplete
               options={tabAccounts}
-              getOptionLabel={(opt) => `${opt.name} (${opt.id})`}
+              getOptionLabel={(opt) => opt.name}
               value={tabAccounts.find((a) => a.id === form.taboola_account_id) || null}
               onChange={(_, val) => onChange("taboola_account_id", val?.id ?? "")}
               isOptionEqualToValue={(o, v) => o.id === v.id}
@@ -1267,7 +1267,7 @@ export default function NewRequestForm({
           {form.ad_platform.includes("MediaGo") && (
             <Autocomplete
               options={mgAccounts}
-              getOptionLabel={(opt) => `${opt.name} (${opt.id})`}
+              getOptionLabel={(opt) => opt.name}
               value={mgAccounts.find((a) => a.id === form.mediago_account_id) || null}
               onChange={(_, val) => onChange("mediago_account_id", val?.id ?? "")}
               isOptionEqualToValue={(o, v) => o.id === v.id}
