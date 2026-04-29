@@ -64,7 +64,7 @@ const CTA_OPTIONS = ["Learn more", "Shop now", "Read more"];
 type ClientName = { id?: string; name: string } | string;
 type ObAccount = { id: string; name: string, marketer_id: string };
 type TabAccount = { id: string; name: string; platform: string };
-type MgAccount = { id: string; name: string; platform: string };
+type MgAccount = { id: number; account_id: string; name: string; enabled: boolean };
 type RawTzRow = { country: string; timezone: string };
 type FolderItem = { id: string; name: string };
 type LanguageOption = { id: string; name: string };
@@ -1268,9 +1268,9 @@ export default function NewRequestForm({
             <Autocomplete
               options={mgAccounts}
               getOptionLabel={(opt) => opt.name}
-              value={mgAccounts.find((a) => a.id === form.mediago_account_id) || null}
-              onChange={(_, val) => onChange("mediago_account_id", val?.id ?? "")}
-              isOptionEqualToValue={(o, v) => o.id === v.id}
+              value={mgAccounts.find((a) => a.account_id === form.mediago_account_id) || null}
+              onChange={(_, val) => onChange("mediago_account_id", val?.account_id ?? "")}
+              isOptionEqualToValue={(o, v) => o.account_id === v.account_id}
               disabled={!form.ad_platform.includes("MediaGo")}
               loading={mgAccLoading}
               loadingText="Loading accounts…"
