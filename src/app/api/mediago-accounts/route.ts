@@ -7,7 +7,7 @@ export async function GET() {
   const token = (await cookies()).get("token")?.value;
   if (!token) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
 
-  const r = await fetch(`${API}/api/accounts?platform=mediago`, {
+  const r = await fetch(`${API}/api/mediago-accounts`, {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
   });
