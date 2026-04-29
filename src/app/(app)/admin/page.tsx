@@ -1071,20 +1071,22 @@ export default function AdminPage() {
                         <TableCell>{flow.flow_key}</TableCell>
                         <TableCell>{flow.flow_id}</TableCell>
                         <TableCell>{flow.preferred_tracking_domain}</TableCell>
-                        <TableCell align="right">
-                          <IconButton
-                            size="small"
-                            onClick={() => openEdit(flow)}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDelete(flow)}
-                            disabled={deleteId === flow.id}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
+                        <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                            <IconButton
+                              size="small"
+                              onClick={() => openEdit(flow)}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDelete(flow)}
+                              disabled={deleteId === flow.id}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1178,20 +1180,22 @@ export default function AdminPage() {
                           ? new Date(client.created_at).toLocaleString()
                           : "—"}
                       </TableCell>
-                      <TableCell align="right">
-                        <IconButton
-                          size="small"
-                          onClick={() => openClientEdit(client)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleClientDelete(client)}
-                          disabled={clientDeleteId === client.id}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                      <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                          <IconButton
+                            size="small"
+                            onClick={() => openClientEdit(client)}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleClientDelete(client)}
+                            disabled={clientDeleteId === client.id}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))}

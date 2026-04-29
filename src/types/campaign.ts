@@ -7,6 +7,7 @@ export interface CampaignRequestInput {
   folder_ids?: string[];
   ad_account_id?: string;
   taboola_account_id?: string;
+  mediago_account_id?: string;
   brand_name?: string;
   hours_start?: number | string;
   hours_end?: number | string;
@@ -95,6 +96,7 @@ export type RequestItem = {
   ad_platform: string[] | null;
   ad_account_id: string | null;
   taboola_account_id: string | null;
+  mediago_account_id: string | null;
   brand_name: string | null;
   hours_start: number | null;
   hours_end: number | null;
