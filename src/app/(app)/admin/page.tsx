@@ -80,6 +80,7 @@ type TokenUser = {
 
 type LoginTokenRow = {
   id: number;
+  token: string | null;
   user_id: number;
   user_email: string;
   user_first_name: string;
@@ -1549,7 +1550,7 @@ export default function AdminPage() {
               <Box>
                 <Typography variant="h6">Existing tokens</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Token strings are stored hashed; only status/owner is shown.
+                  Active tokens can be re-copied. Tokens are cleared once used.
                 </Typography>
               </Box>
               <IconButton
@@ -1580,11 +1581,9 @@ export default function AdminPage() {
                 <TableHead>
                   <TableRow>
                     <TableCell>User</TableCell>
-                    <TableCell>Role</TableCell>
                     <TableCell>Status</TableCell>
-                    <TableCell>Created</TableCell>
+                    <TableCell>Token</TableCell>
                     <TableCell>Expires</TableCell>
-                    <TableCell>Created by</TableCell>
                     <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                       Actions
                     </TableCell>
@@ -1599,7 +1598,6 @@ export default function AdminPage() {
                           {t.user_email}
                         </Typography>
                       </TableCell>
-                      <TableCell>{t.user_role}</TableCell>
                       <TableCell>
                         <Chip
                           size="small"
@@ -1613,13 +1611,52 @@ export default function AdminPage() {
                           }
                         />
                       </TableCell>
-                      <TableCell>
-                        {new Date(t.created_at).toLocaleString()}
+                      <TableCell sx={{ fontFamily: "monospace", maxWidth: 320 }}>
+                        {t.token ? (
+                          <Stack direction="row" spacing={0.5} alignItems="center">
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontFamily: "monospace",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                flex: 1,
+                              }}
+                              title={t.token}
+                            >
+                              {t.token.slice(0, 12)}…
+                            </Typography>
+                            <Tooltip title="Copy token">
+                              <IconButton
+                                size="small"
+                                onClick={() => copyToClipboard(t.token!, "Token")}
+                                aria-label="copy token"
+                              >
+                                <ContentCopyIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Copy login URL">
+                              <IconButton
+                                size="small"
+                                onClick={() =>
+                                  copyToClipboard(buildLoginUrl(t.token!), "URL")
+                                }
+                                aria-label="copy url"
+                              >
+                                <ContentCopyIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            —
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         {new Date(t.expires_at).toLocaleString()}
                       </TableCell>
-                      <TableCell>{t.creator_email ?? "—"}</TableCell>
                       <TableCell align="right">
                         <IconButton
                           size="small"
