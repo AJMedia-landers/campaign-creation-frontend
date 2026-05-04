@@ -30,7 +30,10 @@ import {
   Divider,
   Chip,
   Snackbar,
+  Autocomplete,
+  Tooltip,
 } from "@mui/material";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -65,7 +68,36 @@ type PlatformAccount = {
   timezone: string | null;
 };
 
-type TabValue = "flow-config" | "client-config" | "accounts";
+type TabValue = "flow-config" | "client-config" | "accounts" | "user-tokens";
+
+type TokenUser = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: string;
+};
+
+type LoginTokenRow = {
+  id: number;
+  user_id: number;
+  user_email: string;
+  user_first_name: string;
+  user_last_name: string;
+  user_role: string;
+  creator_email: string | null;
+  used_at: string | null;
+  expires_at: string;
+  created_at: string;
+  status: "active" | "used" | "expired";
+};
+
+type IssuedTokenInfo = {
+  id: number;
+  token: string;
+  expires_at: string;
+  user: { id: number; email: string; first_name: string; last_name: string; role: string };
+};
 
 type FlowFormState = {
   key: string;
@@ -657,6 +689,22 @@ export default function AdminPage() {
   const [accountPage, setAccountPage] = React.useState(0);
   const [accountRowsPerPage, setAccountRowsPerPage] = React.useState(10);
   const [accountSyncing, setAccountSyncing] = React.useState(false);
+
+  // user-tokens (super-admin only)
+  const [tokenUsers, setTokenUsers] = React.useState<TokenUser[]>([]);
+  const [tokens, setTokens] = React.useState<LoginTokenRow[]>([]);
+  const [tokensLoading, setTokensLoading] = React.useState(false);
+  const [tokensError, setTokensError] = React.useState<string | null>(null);
+  const [selectedTokenUser, setSelectedTokenUser] =
+    React.useState<TokenUser | null>(null);
+  const [tokenTtlHours, setTokenTtlHours] = React.useState<string>("24");
+  const [issuedToken, setIssuedToken] =
+    React.useState<IssuedTokenInfo | null>(null);
+  const [creatingToken, setCreatingToken] = React.useState(false);
+  const [revokingTokenId, setRevokingTokenId] = React.useState<number | null>(
+    null
+  );
+
   const [snack, setSnack] = React.useState<{
     open: boolean;
     severity: "success" | "error" | "info";
@@ -810,12 +858,109 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadTokenUsers = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/login-tokens/users", { credentials: "include" });
+      const json = await res.json();
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.message || json?.error || "Failed to load users");
+      }
+      setTokenUsers(json.data ?? []);
+    } catch (err: any) {
+      setTokensError(err.message);
+    }
+  }, []);
+
+  const loadTokens = React.useCallback(async () => {
+    setTokensLoading(true);
+    setTokensError(null);
+    try {
+      const res = await fetch("/api/login-tokens", { credentials: "include" });
+      const json = await res.json();
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.message || json?.error || "Failed to load tokens");
+      }
+      setTokens(json.data ?? []);
+    } catch (err: any) {
+      setTokensError(err.message);
+    } finally {
+      setTokensLoading(false);
+    }
+  }, []);
+
+  const handleCreateToken = async () => {
+    if (!selectedTokenUser) return;
+    setCreatingToken(true);
+    try {
+      const res = await fetch("/api/login-tokens", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          user_id: selectedTokenUser.id,
+          ttl_hours: Number(tokenTtlHours) || 24,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.message || "Failed to create token");
+      }
+      setIssuedToken(json.data);
+      setSelectedTokenUser(null);
+      await loadTokens();
+    } catch (err: any) {
+      setSnack({ open: true, severity: "error", message: err.message });
+    } finally {
+      setCreatingToken(false);
+    }
+  };
+
+  const handleRevokeToken = async (id: number) => {
+    setRevokingTokenId(id);
+    try {
+      const res = await fetch(`/api/login-tokens/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = await res.json();
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.message || "Failed to revoke token");
+      }
+      setTokens((prev) => prev.filter((t) => t.id !== id));
+      setSnack({ open: true, severity: "success", message: "Token revoked" });
+    } catch (err: any) {
+      setSnack({ open: true, severity: "error", message: err.message });
+    } finally {
+      setRevokingTokenId(null);
+    }
+  };
+
+  const buildLoginUrl = (token: string): string => {
+    if (typeof window === "undefined") return "";
+    return `${window.location.origin}/?token=${encodeURIComponent(token)}`;
+  };
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setSnack({ open: true, severity: "success", message: `${label} copied` });
+    } catch {
+      setSnack({ open: true, severity: "error", message: "Copy failed" });
+    }
+  };
+
+  const isSuperAdmin = user?.role === "super-admin";
+
   React.useEffect(() => {
     if (!userLoaded || accessDenied) return;
     loadFlows();
     loadClients();
     loadAccounts();
-  }, [userLoaded, accessDenied, loadFlows, loadClients, loadAccounts]);
+    if (user?.role === "super-admin") {
+      loadTokenUsers();
+      loadTokens();
+    }
+  }, [userLoaded, accessDenied, user?.role, loadFlows, loadClients, loadAccounts, loadTokenUsers, loadTokens]);
 
 
 
@@ -994,6 +1139,7 @@ export default function AdminPage() {
           <Tab label="Flow Config" value="flow-config" />
           <Tab label="Client Config" value="client-config" />
           <Tab label="Accounts" value="accounts" />
+          {isSuperAdmin && <Tab label="User Tokens" value="user-tokens" />}
         </Tabs>
       </Paper>
 
@@ -1333,6 +1479,247 @@ export default function AdminPage() {
           )}
         </Paper>
       )}
+
+      {tab === "user-tokens" && isSuperAdmin && (
+        <>
+          <Paper sx={{ p: 3, mb: 3 }}>
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="h6">Issue a one-time login token</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Generates a single-use token. Append it as <code>?token=…</code>
+                to any URL on any of our frontends to sign the recipient in as
+                the selected user. The raw token is shown once — copy it
+                immediately.
+              </Typography>
+            </Box>
+
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={2}
+              alignItems={{ xs: "stretch", sm: "flex-end" }}
+            >
+              <Autocomplete
+                sx={{ flex: 1 }}
+                options={tokenUsers}
+                getOptionLabel={(u) =>
+                  `${u.first_name} ${u.last_name} <${u.email}>${
+                    u.role !== "user" ? ` [${u.role}]` : ""
+                  }`
+                }
+                value={selectedTokenUser}
+                onChange={(_, val) => setSelectedTokenUser(val)}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
+                renderInput={(params) => (
+                  <TextField {...params} label="Target user" size="small" />
+                )}
+              />
+              <TextField
+                label="TTL (hours)"
+                size="small"
+                type="number"
+                value={tokenTtlHours}
+                onChange={(e) => setTokenTtlHours(e.target.value)}
+                inputProps={{ min: 1, max: 24 * 30 }}
+                sx={{ width: 140 }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleCreateToken}
+                disabled={!selectedTokenUser || creatingToken}
+                startIcon={
+                  creatingToken ? (
+                    <CircularProgress size={16} color="inherit" />
+                  ) : null
+                }
+              >
+                {creatingToken ? "Creating…" : "Create token"}
+              </Button>
+            </Stack>
+          </Paper>
+
+          <Paper sx={{ p: 3, mb: 3 }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                mb: 1.5,
+              }}
+            >
+              <Box>
+                <Typography variant="h6">Existing tokens</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Token strings are stored hashed; only status/owner is shown.
+                </Typography>
+              </Box>
+              <IconButton
+                aria-label="reload"
+                onClick={() => loadTokens()}
+                disabled={tokensLoading}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Box>
+
+            {tokensError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {tokensError}
+              </Alert>
+            )}
+
+            {tokensLoading ? (
+              <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
+                <CircularProgress size={28} />
+              </Box>
+            ) : tokens.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No tokens issued yet.
+              </Typography>
+            ) : (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>User</TableCell>
+                    <TableCell>Role</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Created</TableCell>
+                    <TableCell>Expires</TableCell>
+                    <TableCell>Created by</TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                      Actions
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {tokens.map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell>
+                        {t.user_first_name} {t.user_last_name}
+                        <Typography variant="caption" display="block" color="text.secondary">
+                          {t.user_email}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{t.user_role}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={t.status}
+                          color={
+                            t.status === "active"
+                              ? "success"
+                              : t.status === "used"
+                              ? "default"
+                              : "warning"
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {new Date(t.created_at).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(t.expires_at).toLocaleString()}
+                      </TableCell>
+                      <TableCell>{t.creator_email ?? "—"}</TableCell>
+                      <TableCell align="right">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRevokeToken(t.id)}
+                          disabled={revokingTokenId === t.id}
+                          aria-label="revoke"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </Paper>
+        </>
+      )}
+
+      {/* Issued-token modal — shown once after creation */}
+      <Dialog
+        open={!!issuedToken}
+        onClose={() => setIssuedToken(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Token created</DialogTitle>
+        <DialogContent>
+          {issuedToken && (
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <Alert severity="warning">
+                Copy the URL or token now. After this dialog closes the value
+                cannot be retrieved.
+              </Alert>
+              <Alert severity="info">
+                Append <code>?token=…</code> to <strong>any</strong> page URL on
+                any of our frontends to log in as this user. The token is valid
+                for one use only.
+              </Alert>
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  For user
+                </Typography>
+                <Typography>
+                  {issuedToken.user.first_name} {issuedToken.user.last_name} (
+                  {issuedToken.user.email})
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Login URL
+                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <TextField
+                    fullWidth
+                    size="small"
+                    value={buildLoginUrl(issuedToken.token)}
+                    InputProps={{ readOnly: true, sx: { fontFamily: "monospace" } }}
+                  />
+                  <Tooltip title="Copy URL">
+                    <IconButton
+                      onClick={() =>
+                        copyToClipboard(buildLoginUrl(issuedToken.token), "URL")
+                      }
+                    >
+                      <ContentCopyIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Raw token
+                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <TextField
+                    fullWidth
+                    size="small"
+                    value={issuedToken.token}
+                    InputProps={{ readOnly: true, sx: { fontFamily: "monospace" } }}
+                  />
+                  <Tooltip title="Copy token">
+                    <IconButton
+                      onClick={() => copyToClipboard(issuedToken.token, "Token")}
+                    >
+                      <ContentCopyIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Expires: {new Date(issuedToken.expires_at).toLocaleString()}
+              </Typography>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIssuedToken(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       <ConfirmBeforeSubmit
         open={deleteModalOpen}
