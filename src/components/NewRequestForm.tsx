@@ -50,6 +50,7 @@ const PLATFORMS = [
   { id: "Taboola", label: "Taboola" },
   { id: "Outbrain", label: "Outbrain" },
   { id: "RevContent", label: "RevContent" },
+  { id: "MediaGo", label: "MediaGo" },
 ];
 
 const DEVICES = [
@@ -63,6 +64,7 @@ const CTA_OPTIONS = ["Learn more", "Shop now", "Read more"];
 type ClientName = { id?: string; name: string } | string;
 type ObAccount = { id: string; name: string, marketer_id: string };
 type TabAccount = { id: string; name: string; platform: string };
+type MgAccount = { id: number; account_id: string; name: string; enabled: boolean };
 type RawTzRow = { country: string; timezone: string };
 type FolderItem = { id: string; name: string };
 type LanguageOption = { id: string; name: string };
@@ -115,6 +117,7 @@ export default function NewRequestForm({
     ad_platform: [],
     ad_account_id: "",
     taboola_account_id: "",
+    mediago_account_id: "",
     brand_name: "",
     timezone: "UTC",
     country: "",
@@ -307,6 +310,33 @@ export default function NewRequestForm({
         if (!canceled) setTabAccError("Failed to load Taboola accounts");
       } finally {
         if (!canceled) setTabAccLoading(false);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  // MediaGo accounts
+  const [mgAccounts, setMgAccounts] = useState<MgAccount[]>([]);
+  const [mgAccLoading, setMgAccLoading] = useState(false);
+  const [mgAccError, setMgAccError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let canceled = false;
+    (async () => {
+      try {
+        setMgAccLoading(true);
+        setMgAccError(null);
+        const res = await fetch("/api/mediago-accounts");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+        if (!canceled) setMgAccounts(list as MgAccount[]);
+      } catch {
+        if (!canceled) setMgAccError("Failed to load MediaGo accounts");
+      } finally {
+        if (!canceled) setMgAccLoading(false);
       }
     })();
     return () => {
@@ -582,6 +612,8 @@ export default function NewRequestForm({
       e.ad_account_id = "Select an Outbrain account";
     if (form.ad_platform.includes("Taboola") && !form.taboola_account_id)
       e.taboola_account_id = "Select a Taboola account";
+    if (form.ad_platform.includes("MediaGo") && !form.mediago_account_id)
+      e.mediago_account_id = "Select a MediaGo account";
     if (!form.country) e.country = "Required";
     if (!form.timezone) e.timezone = "Required";
     if (!form.device?.length) e.device = "Select at least one device";
@@ -612,6 +644,7 @@ export default function NewRequestForm({
     "ad_platform",
     "ad_account_id",
     "taboola_account_id",
+    "mediago_account_id",
     "brand_name",
     "hours_start",
     "hours_end",
@@ -642,6 +675,7 @@ export default function NewRequestForm({
       if (!base.folder_ids || base.folder_ids.length === 0) delete base.folder_ids;
       if (!base.ad_platform?.includes("Outbrain")) delete base.ad_account_id;
       if (!base.ad_platform?.includes("Taboola")) delete base.taboola_account_id;
+      if (!base.ad_platform?.includes("MediaGo")) delete base.mediago_account_id;
       if (!base.ad_platform?.includes("RevContent")) {
         delete base.language;
         delete base.pacing;
@@ -1205,7 +1239,7 @@ export default function NewRequestForm({
           {form.ad_platform.includes("Taboola") && (
             <Autocomplete
               options={tabAccounts}
-              getOptionLabel={(opt) => `${opt.name} (${opt.id})`}
+              getOptionLabel={(opt) => opt.name}
               value={tabAccounts.find((a) => a.id === form.taboola_account_id) || null}
               onChange={(_, val) => onChange("taboola_account_id", val?.id ?? "")}
               isOptionEqualToValue={(o, v) => o.id === v.id}
@@ -1222,6 +1256,34 @@ export default function NewRequestForm({
                     form.ad_platform.includes("Taboola")
                       ? errors.taboola_account_id || tabAccError || ""
                       : "Enable by selecting Taboola"
+                  }
+                  fullWidth
+                />
+              )}
+            />
+          )}
+
+          {/* MediaGo account */}
+          {form.ad_platform.includes("MediaGo") && (
+            <Autocomplete
+              options={mgAccounts}
+              getOptionLabel={(opt) => opt.name}
+              value={mgAccounts.find((a) => a.account_id === form.mediago_account_id) || null}
+              onChange={(_, val) => onChange("mediago_account_id", val?.account_id ?? "")}
+              isOptionEqualToValue={(o, v) => o.account_id === v.account_id}
+              disabled={!form.ad_platform.includes("MediaGo")}
+              loading={mgAccLoading}
+              loadingText="Loading accounts…"
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="MediaGo Account"
+                  placeholder="Search"
+                  error={!!errors.mediago_account_id}
+                  helperText={
+                    form.ad_platform.includes("MediaGo")
+                      ? errors.mediago_account_id || mgAccError || ""
+                      : "Enable by selecting MediaGo"
                   }
                   fullWidth
                 />
