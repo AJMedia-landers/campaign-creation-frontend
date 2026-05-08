@@ -124,6 +124,7 @@ const PLATFORM_OPTIONS = [
   { value: "taboola", label: "Taboola" },
   { value: "outbrain", label: "Outbrain" },
   { value: "revcontent", label: "RevContent" },
+  { value: "mediago", label: "Mediago" },
 ] as const;
 
 const DEVICE_OPTIONS = [
