@@ -686,7 +686,7 @@ export default function AdminPage() {
   const [accounts, setAccounts] = React.useState<PlatformAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = React.useState(false);
   const [accountsError, setAccountsError] = React.useState<string | null>(null);
-  const [accountPlatform, setAccountPlatform] = React.useState<"all" | "taboola" | "outbrain">("all");
+  const [accountPlatform, setAccountPlatform] = React.useState<"all" | "taboola" | "outbrain" | "mediago">("all");
   const [accountNameSearch, setAccountNameSearch] = React.useState("");
   const [accountPage, setAccountPage] = React.useState(0);
   const [accountRowsPerPage, setAccountRowsPerPage] = React.useState(10);
@@ -1375,7 +1375,7 @@ export default function AdminPage() {
             <Box>
               <Typography variant="h6">Accounts</Typography>
               <Typography variant="body2" color="text.secondary">
-                Taboola & Outbrain accounts.
+                Taboola, Outbrain & MediaGo accounts.
               </Typography>
             </Box>
             <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
@@ -1406,13 +1406,14 @@ export default function AdminPage() {
               label="Platform"
               value={accountPlatform}
               onChange={(e) =>
-                setAccountPlatform(e.target.value as "all" | "taboola" | "outbrain")
+                setAccountPlatform(e.target.value as "all" | "taboola" | "outbrain" | "mediago")
               }
               sx={{ minWidth: 180 }}
             >
               <MenuItem value="all">All</MenuItem>
               <MenuItem value="taboola">Taboola</MenuItem>
               <MenuItem value="outbrain">Outbrain</MenuItem>
+              <MenuItem value="mediago">MediaGo</MenuItem>
             </TextField>
             <TextField
               size="small"
